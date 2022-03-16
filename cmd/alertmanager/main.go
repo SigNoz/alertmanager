@@ -511,12 +511,20 @@ func run() int {
 		})
 		router = router.WithPrefix(*routePrefix)
 	}
-
+	
+	// webReload intitiates config reload 
 	webReload := make(chan chan error)
+	
+	// updateConfigCh updates config on the disk 
+	// and reloads the alert manager 
+	updateConfigCh := make(chan interface{})
+	updateConfigErrCh := make(chan error)
 
 	ui.Register(router, webReload, logger)
-
-	mux := api.Register(router, *routePrefix)
+	
+	// webReload is included to support reload of alert manager
+	// after addition of new route or receiver from handler (API)
+	mux := api.Register(router, *routePrefix, webReload, updateConfigCh, updateConfigErrCh)
 
 	srv := &http.Server{Addr: *listenAddress, Handler: mux}
 	srvc := make(chan struct{})
@@ -543,14 +551,27 @@ func run() int {
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
+		
 		<-hupReady
 		for {
 			select {
 			case <-hup:
 				// ignore error, already logged in `reload()`
 				_ = configCoordinator.Reload()
-			case errc := <-webReload:
+			case errc := <-webReload: 
 				errc <- configCoordinator.Reload()
+			case changes, ok := <-updateConfigCh:
+				if rr, ok := changes.(*RouteAndReceiver); ok {
+					
+					fmt.Println("got a message to add route", rr)
+					updateConfigErrCh <- configCoordinator.AddRouteAndReceiver(rr)
+
+					// reload 
+				} else {
+					updateConfigErrCh <- fmt.Errorf("functionality not implemented yet")
+				}
+				
+				
 			}
 		}
 	}()
