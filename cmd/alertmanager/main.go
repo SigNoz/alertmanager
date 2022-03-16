@@ -560,18 +560,22 @@ func run() int {
 				_ = configCoordinator.Reload()
 			case errc := <-webReload: 
 				errc <- configCoordinator.Reload()
-			case changes, ok := <-updateConfigCh:
-				if rr, ok := changes.(*RouteAndReceiver); ok {
-					
-					fmt.Println("got a message to add route", rr)
-					updateConfigErrCh <- configCoordinator.AddRouteAndReceiver(rr)
-
-					// reload 
-				} else {
+			case changes := <-updateConfigCh:
+				if req, ok := changes.(*config.ConfigChangeRequest); ok {
+					switch req.Action {
+						case config.AddRoute: 
+							// add route to disk config
+							updateConfigErrCh <- configCoordinator.AddRoute(req.Route, req.Receiver)
+						case config.EditRoute:
+							updateConfigErrCh <- configCoordinator.EditRoute(req.Route, req.Receiver)	
+						case config.DeleteRoute:
+							updateConfigErrCh <- configCoordinator.DeleteRoute(req.Name)	
+						default:
+							updateConfigErrCh <- fmt.Errorf("functionality not implemented yet")		
+						}  
+					} else {	
 					updateConfigErrCh <- fmt.Errorf("functionality not implemented yet")
 				}
-				
-				
 			}
 		}
 	}()
