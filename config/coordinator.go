@@ -14,6 +14,9 @@
 package config
 
 import (
+	"os"
+	"io/ioutil"
+	"fmt"
 	"crypto/md5"
 	"encoding/binary"
 	"sync"
@@ -37,6 +40,9 @@ type Coordinator struct {
 	configHashMetric        prometheus.Gauge
 	configSuccessMetric     prometheus.Gauge
 	configSuccessTimeMetric prometheus.Gauge
+
+	// a mutex for disk writes
+	diskLock	sync.Mutex
 }
 
 // NewCoordinator returns a new coordinator with the given configuration file
@@ -102,6 +108,56 @@ func (c *Coordinator) loadFromFile() error {
 	c.config = conf
 
 	return nil
+}
+
+// AddRouteAndReceiver updates a new receiver and route to 
+// disk (config file) 
+func (c *Coordinator) AddRouteAndReceiver(rr *RouteAndReceiver) error {
+	
+	c.diskLock.Lock()
+	defer c.diskLock.Unlock()
+
+	if len(c.config.original) == 0 {
+		return fmt.Errorf("can not update to an empty config from the disk")
+	}
+
+	// load original config from disk 
+	configFromDisk, err := Load(c.config.original)
+	if err != nil {
+		return err
+	}
+	
+	configFromDisk.Global.SMTPFrom="amol@gmail.com"
+
+	return c.saveUpdatesToDisk(configFromDisk.String())
+}
+
+func (c *Coordinator) saveUpdatesToDisk(s string) error {
+	
+	// open config file to get perm_mode and create backup
+	f, err := os.Open(c.configFilePath); 
+	if err != nil {
+		return err
+	}
+
+	// close the file now that we know it exists 
+	defer f.Close()
+
+	// fetching the perm here as it is mandatory for writeFile 
+	// ops. The ioutil.writefile uses the perm to create file 
+	// if it does not exist. But in our case it is unlikely 
+	// to ever happen
+	fileInfo, _ := f.Stat()f
+	
+	// fetching perm for backup file 
+	perm := fileInfo.Mode().Perm()
+
+	// todo: backup the current config file 
+	// open in os.OpenFile(dst, syscall.O_CREATE | syscall.O_EXCL, FileMode(0666))
+	
+	fmt.Println("permissions:", perm)
+
+	return ioutil.WriteFile(c.configFilePath, []byte(s), perm)
 }
 
 // Reload triggers a configuration reload from file and notifies all

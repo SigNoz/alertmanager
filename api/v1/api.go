@@ -79,6 +79,13 @@ type API struct {
 	getAlertStatus getAlertStatusFn
 
 	mtx sync.RWMutex
+
+	// reload config
+	reloadCh chan<- chan error
+	
+	// write config to disk
+	updateConfigCh chan interface{}
+	updateConfigErrCh chan error
 }
 
 type getAlertStatusFn func(model.Fingerprint) types.AlertStatus
@@ -109,7 +116,11 @@ func New(
 
 // Register registers the API handlers under their correct routes
 // in the given router.
-func (api *API) Register(r *route.Router) {
+func (api *API) Register(r *route.Router, reloadCh chan<- chan error, updateConfigCh chan interface{}, updateConfigErrCh chan error) {
+	api.reloadCh = reloadCh
+	api.updateConfigCh = saveConfigCh
+	api.updateConfigErrCh = updateConfigErrCh
+
 	wrap := func(f http.HandlerFunc) http.HandlerFunc {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			setCORS(w)
@@ -129,6 +140,8 @@ func (api *API) Register(r *route.Router) {
 	r.Post("/silences", wrap(api.setSilence))
 	r.Get("/silence/:sid", wrap(api.getSilence))
 	r.Del("/silence/:sid", wrap(api.delSilence))
+
+	r.Post("/routes", wrap(api.addRoute))
 }
 
 // Update sets the configuration string to a new value.
@@ -806,3 +819,4 @@ func (api *API) receive(r *http.Request, v interface{}) error {
 	}
 	return nil
 }
+
