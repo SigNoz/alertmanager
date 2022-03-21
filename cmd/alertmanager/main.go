@@ -563,13 +563,13 @@ func run() int {
 			case changes := <-updateConfigCh:
 				if req, ok := changes.(*config.ConfigChangeRequest); ok {
 					switch req.Action {
-						case config.AddRoute: 
+						case config.AddRouteAction: 
 							// add route to disk config
 							updateConfigErrCh <- configCoordinator.AddRoute(req.Route, req.Receiver)
-						case config.EditRoute:
+						case config.EditRouteAction:
 							updateConfigErrCh <- configCoordinator.EditRoute(req.Route, req.Receiver)	
-						case config.DeleteRoute:
-							updateConfigErrCh <- configCoordinator.DeleteRoute(req.Name)	
+						case config.DeleteRouteAction:
+							updateConfigErrCh <- configCoordinator.DeleteRoute(req.Receiver.Name)	
 						default:
 							updateConfigErrCh <- fmt.Errorf("functionality not implemented yet")		
 						}  

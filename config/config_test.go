@@ -14,7 +14,6 @@
 package config
 
 import (
-	"fmt"
 	"encoding/json"
 	"net/url"
 	"os"
@@ -1158,7 +1157,7 @@ func TestNilRegexp(t *testing.T) {
 	}
 }
 
-func TestAddRoute(t *testing.T) {
+func TestAddAndDeleteRoute(t *testing.T) {
 	config, err := LoadFile("testdata/conf.just-default.yml")
 	if err != nil {
 		t.Fatalf("Error parsing %s: %s", "testdata/conf-just-default.yml", err)
@@ -1177,8 +1176,7 @@ func TestAddRoute(t *testing.T) {
 		},
 	}
 
-	fmt.Println(config.AddRoute(&route, &receiver))
-	fmt.Println("config:", config)
+	config.AddRoute(&route, &receiver)
 	
 	assert := assert.New(t)
 	assert.NotNil(t, config)
@@ -1197,4 +1195,31 @@ func TestAddRoute(t *testing.T) {
 			assert.Equal(config.Receivers[1], &receiver, "unexpected attributes found on the receiver")
 		}
 	}
+	
+	route.Receiver = "test-add-route-2"
+	receiver.Name = "test-add-route-2"
+
+	config.AddRoute(&route, &receiver)
+
+	assert.NoError(config.DeleteRoute("test-add-route"), "failed to delete route test-add-route")
+	
+	// check if existing receiver still exists 
+	check1 := false
+
+	// check if deleted receiver does not eixst 
+	check2 := true
+	
+	for _, r := range config.Receivers {
+		if r.Name == "test-add-route-2" {
+			check1 = true; 
+		}
+		if r.Name == "test-add-route"{
+			// deleted receiver exists 
+			check2 = false
+		}
+	}
+
+	assert.Equal(check1, true, "existing route deleted even when not asked")
+	assert.Equal(check2, true, "deleted receiver still exists")
+	assert.Equal(config.Route.Routes[0], &route, "deleting route did not work")
 }

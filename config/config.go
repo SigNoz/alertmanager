@@ -558,23 +558,17 @@ func (c *Config) EditRoute(r *Route, rcv *Receiver) error {
 	return nil
 }
 
-// DeleteReciever changes an existing route in configuration. 
+// DeleteRoute deletes an existing route in the configuration. 
 // the assumption is receiver can have max one route and 
 // the route hierachy has max of 1 level
-// This method is intended for local disk updates only
+// This method is intended for local disk file updates only (not in-memory updates)
 func (c *Config) DeleteRoute(name string) error {
 	
 	if name == "" {
 		return fmt.Errorf("delete receiver requires the receiver name")
 	}
 
-	// find receiver and delete 
-	for i, receiver := range c.Receivers {
-		if receiver.Name == name {
-			c.Receivers = append(c.Receivers[:i], c.Receivers[i+1:]...)
-			break
-		}
-	}
+
 	// assumption: the route hierarchy has max 1 level
 	routes := c.Route.Routes
 	for i, r := range routes {
@@ -584,6 +578,13 @@ func (c *Config) DeleteRoute(name string) error {
 		}
 	}
 
+	// find receiver and delete 
+	for i, receiver := range c.Receivers {
+		if receiver.Name == name {
+			c.Receivers = append(c.Receivers[:i], c.Receivers[i+1:]...)
+			break
+		}
+	}
 	return nil
 }
 

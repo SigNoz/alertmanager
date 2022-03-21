@@ -118,7 +118,7 @@ func New(
 // in the given router.
 func (api *API) Register(r *route.Router, reloadCh chan<- chan error, updateConfigCh chan interface{}, updateConfigErrCh chan error) {
 	api.reloadCh = reloadCh
-	api.updateConfigCh = saveConfigCh
+	api.updateConfigCh = updateConfigCh
 	api.updateConfigErrCh = updateConfigErrCh
 
 	wrap := func(f http.HandlerFunc) http.HandlerFunc {
@@ -132,7 +132,7 @@ func (api *API) Register(r *route.Router, reloadCh chan<- chan error, updateConf
 
 	r.Get("/status", wrap(api.status))
 	r.Get("/receivers", wrap(api.receivers))
-
+	
 	r.Get("/alerts", wrap(api.listAlerts))
 	r.Post("/alerts", wrap(api.addAlerts))
 
@@ -142,6 +142,8 @@ func (api *API) Register(r *route.Router, reloadCh chan<- chan error, updateConf
 	r.Del("/silence/:sid", wrap(api.delSilence))
 
 	r.Post("/routes", wrap(api.addRoute))
+	r.Put("/routes", wrap(api.editRoute))
+	r.Del("/routes", wrap(api.deleteRoute))
 }
 
 // Update sets the configuration string to a new value.
@@ -316,6 +318,7 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
+	
 
 	api.mtx.RLock()
 	for a := range alerts.Next() {
@@ -464,6 +467,7 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 		}
 		validAlerts = append(validAlerts, a)
 	}
+	
 	if err := api.alerts.Put(validAlerts...); err != nil {
 		api.respondError(w, apiError{
 			typ: errorInternal,
