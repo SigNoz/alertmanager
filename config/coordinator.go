@@ -41,8 +41,14 @@ type Coordinator struct {
 	configSuccessMetric     prometheus.Gauge
 	configSuccessTimeMetric prometheus.Gauge
 
-	// a mutex for disk writes
-	diskLock	sync.Mutex
+	// a mutex for disk writes of config 
+	configWriteLock	sync.Mutex
+
+	// exact copy of config on disk, we always perform 
+	// the updates on disk and the reload
+	// will populate the Coordinator.config - which is working
+	// copy of config in memory  
+	configOnDisk *Config 
 }
 
 // NewCoordinator returns a new coordinator with the given configuration file
@@ -110,26 +116,88 @@ func (c *Coordinator) loadFromFile() error {
 	return nil
 }
 
-// AddRouteAndReceiver updates a new receiver and route to 
-// disk (config file) 
-func (c *Coordinator) AddRouteAndReceiver(rr *RouteAndReceiver) error {
+// loadDiskConfig loads exact copy of config from disk
+// for supporting runtime updates 
+func (c *Coordinator) loadDiskConfig(shouldLock bool) error {
 	
-	c.diskLock.Lock()
-	defer c.diskLock.Unlock()
-
 	if len(c.config.original) == 0 {
 		return fmt.Errorf("can not update to an empty config from the disk")
 	}
 
+	if shouldLock {
+		c.configWriteLock.Lock()
+		defer c.configWriteLock.Unlock()
+	}
+
 	// load original config from disk 
-	configFromDisk, err := Load(c.config.original)
+	configOnDisk, err := Load(c.config.original)
 	if err != nil {
 		return err
 	}
 	
-	configFromDisk.Global.SMTPFrom="amol@gmail.com"
+	// cache 
+	c.configOnDisk = configOnDisk
+	return nil
+}
 
-	return c.saveUpdatesToDisk(configFromDisk.String())
+// AddRoute adds a new receiver and route to 
+// disk (config file) 
+func (c *Coordinator) AddRoute(r *Route, rcv *Receiver) error {
+	
+	c.configWriteLock.Lock()
+	defer c.configWriteLock.Unlock()
+
+	if c.configOnDisk == nil {
+		if err := c.loadDiskConfig(false); err != nil {
+			return err
+		}
+	}
+	
+	if err := c.configOnDisk.AddRoute(r, rcv); err != nil {
+		return err
+	}
+	
+	// write to disk prior to reload
+	return c.saveUpdatesToDisk(c.configOnDisk.String())
+}
+
+// EditRoute updates route and receiver in disk config 
+func (c *Coordinator) EditRoute(r *Route, rcv *Receiver) error {
+	c.configWriteLock.Lock()
+	defer c.configWriteLock.Unlock()
+
+	if c.configOnDisk == nil {
+		if err := c.loadDiskConfig(false); err != nil {
+			return err
+		}
+	}
+	
+	if err := c.configOnDisk.EditRoute(r, rcv); err != nil {
+		return err
+	}
+	
+	// write to disk prior to reload
+	return c.saveUpdatesToDisk(c.configOnDisk.String())
+
+}
+
+// DeleteRoute deletes route and receiver from disk config 
+func (c *Coordinator) DeleteRoute(name string) error {
+	c.configWriteLock.Lock()
+	defer c.configWriteLock.Unlock()
+
+	if c.configOnDisk == nil {
+		if err := c.loadDiskConfig(false); err != nil {
+			return err
+		}
+	}
+	
+	if err := c.configOnDisk.DeleteRoute(name); err != nil {
+		return err
+	}
+	
+	// write to disk prior to reload
+	return c.saveUpdatesToDisk(c.configOnDisk.String())
 }
 
 func (c *Coordinator) saveUpdatesToDisk(s string) error {
@@ -137,7 +205,7 @@ func (c *Coordinator) saveUpdatesToDisk(s string) error {
 	// open config file to get perm_mode and create backup
 	f, err := os.Open(c.configFilePath); 
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open config file from disk for update: %v", err)
 	}
 
 	// close the file now that we know it exists 
@@ -147,15 +215,13 @@ func (c *Coordinator) saveUpdatesToDisk(s string) error {
 	// ops. The ioutil.writefile uses the perm to create file 
 	// if it does not exist. But in our case it is unlikely 
 	// to ever happen
-	fileInfo, _ := f.Stat()f
+	fileInfo, _ := f.Stat()
 	
 	// fetching perm for backup file 
 	perm := fileInfo.Mode().Perm()
 
 	// todo: backup the current config file 
 	// open in os.OpenFile(dst, syscall.O_CREATE | syscall.O_EXCL, FileMode(0666))
-	
-	fmt.Println("permissions:", perm)
 
 	return ioutil.WriteFile(c.configFilePath, []byte(s), perm)
 }

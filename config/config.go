@@ -187,6 +187,7 @@ func Load(s string) (*Config, error) {
 	}
 
 	cfg.original = s
+
 	return cfg, nil
 }
 
@@ -200,7 +201,7 @@ func LoadFile(filename string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	
 	resolveFilepaths(filepath.Dir(filename), cfg)
 	return cfg, nil
 }
@@ -493,6 +494,99 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkTimeInterval(c.Route, tiNames)
 }
 
+// AddRoute adds a new route to configuration. 
+// the assumption is receiver can have max one route 
+// This method is intended for local disk updates only
+func (c *Config) AddRoute(r *Route, rcv *Receiver) error {
+	
+	if rcv == nil || r == nil {
+		return fmt.Errorf("adding a route requires both route and receiver")
+	}
+
+	if r.Receiver == "" || rcv.Name == "" {
+		return fmt.Errorf("receiver is mandatory in route and receiver")
+	}
+	
+	// check that receiver name is not already used
+	for _, receiver := range c.Receivers {
+		if receiver.Name == rcv.Name || receiver.Name == r.Receiver {
+			return fmt.Errorf("the channel name has to be unique, please choose a different name")
+		}
+	}
+	// must set continue on route to allow subsequent 
+	// routes to work. may have to rethink on this after 
+	// adding matchers and filters in upstream 
+	r.Continue = true
+
+	c.Route.Routes = append(c.Route.Routes, r)
+	c.Receivers = append(c.Receivers, rcv)
+	return nil
+}
+
+// EditRoute changes an existing route in configuration. 
+// the assumption is receiver can have max one route 
+// This method is intended for local disk updates only
+func (c *Config) EditRoute(r *Route, rcv *Receiver) error {
+	
+	if rcv == nil || r == nil {
+		return fmt.Errorf("adding a route requires both route and receiver")
+	}
+
+	if r.Receiver == "" || rcv.Name == "" {
+		return fmt.Errorf("receiver is mandatory in route and receiver")
+	}
+
+	// find and update receiver 
+	for i, receiver := range c.Receivers {
+		if receiver.Name == rcv.Name {
+			c.Receivers[i] = rcv
+		}
+	}
+
+	// assumption: the route hierarchy has max 1 level
+	// may have to rethink this after adding matchers and filters
+	// in upstream. presently we only have top level, no filter routes
+	routes := c.Route.Routes
+	for i, route := range routes {
+		if route.Receiver == r.Receiver {
+			c.Route.Routes[i] = r
+			break
+		}
+	}
+ 
+
+	return nil
+}
+
+// DeleteReciever changes an existing route in configuration. 
+// the assumption is receiver can have max one route and 
+// the route hierachy has max of 1 level
+// This method is intended for local disk updates only
+func (c *Config) DeleteRoute(name string) error {
+	
+	if name == "" {
+		return fmt.Errorf("delete receiver requires the receiver name")
+	}
+
+	// find receiver and delete 
+	for i, receiver := range c.Receivers {
+		if receiver.Name == name {
+			c.Receivers = append(c.Receivers[:i], c.Receivers[i+1:]...)
+			break
+		}
+	}
+	// assumption: the route hierarchy has max 1 level
+	routes := c.Route.Routes
+	for i, r := range routes {
+		if r.Receiver == name {
+			c.Route.Routes = append(routes[:i], routes[i+1:]...)
+			break
+		}
+	}
+
+	return nil
+}
+
 // checkReceiver returns an error if a node in the routing tree
 // references a receiver not in the given map.
 func checkReceiver(r *Route, receivers map[string]struct{}) error {
@@ -649,7 +743,9 @@ type GlobalConfig struct {
 	SMTPAuthSecret     Secret     `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
 	SMTPAuthIdentity   string     `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
 	SMTPRequireTLS     bool       `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
-	SlackAPIURL        *SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	// Changing from SecretURL to URL, for supporting persistence of 
+	// runtime config changes
+	SlackAPIURL        *URL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
 	SlackAPIURLFile    string     `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
 	PagerdutyURL       *URL       `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
 	OpsGenieAPIURL     *URL       `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
@@ -738,6 +834,16 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+func (r *Route) Walk(visit func(*Route)) {
+	visit(r)
+	if r.Routes == nil {
+		return
+	}
+	for i := range r.Routes {
+		r.Routes[i].Walk(visit)
+	}
+}
+
 // InhibitRule defines an inhibition rule that mutes alerts that match the
 // target labels if an alert matching the source labels exists.
 // Both alerts have to have a set of labels being equal.
@@ -799,6 +905,22 @@ type Receiver struct {
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
+}
+
+func (c *Receiver) Validate() error {
+	if c.Name == ""{
+		return fmt.Errorf("receiver name is mandatory")
+	}
+
+	if len(c.WebhookConfigs) > 0 {
+		for _, w := range c.WebhookConfigs {
+			if err := w.Validate(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
@@ -944,9 +1066,3 @@ func (m Matchers) MarshalJSON() ([]byte, error) {
 	return json.Marshal(result)
 }
 
-// RouteAndReceiver is useful when managing a receiver 
-// and curresponding routes in same operation
-type RouteAndReceiver struct {
-	*Route
-	*Receiver
-}
