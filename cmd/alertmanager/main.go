@@ -64,6 +64,8 @@ import (
 	"github.com/prometheus/alertmanager/timeinterval"
 	"github.com/prometheus/alertmanager/types"
 	"github.com/prometheus/alertmanager/ui"
+
+	"github.com/prometheus/alertmanager/integrations/queryservice"
 )
 
 var (
@@ -129,6 +131,7 @@ const defaultClusterAddr = "0.0.0.0:9094"
 // buildReceiverIntegrations builds a list of integration notifiers off of a
 // receiver config.
 func buildReceiverIntegrations(nc *config.Receiver, tmpl *template.Template, logger log.Logger) ([]notify.Integration, error) {
+
 	var (
 		errs         types.MultiError
 		integrations []notify.Integration
@@ -186,7 +189,7 @@ func run() int {
 	}
 
 	var (
-		configFile      = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
+		queryServiceURL      = kingpin.Flag("queryService.url", "Query service URL for retrieving config updates").Default("localhost:8080").String()
 		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
@@ -397,8 +400,15 @@ func run() int {
 	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
 	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer)
 	configLogger := log.With(logger, "component", "configuration")
+	
+	configLoader, err := queryservice.NewConfigLoader(queryServiceURL, configLogger)
+	if err != nil {
+		level.Error(logger).Log("msg", "failed to initiate config from loader", "err", err)
+		return 1
+	}
+
 	configCoordinator := config.NewCoordinator(
-		*configFile,
+		configLoader,
 		prometheus.DefaultRegisterer,
 		configLogger,
 	)
