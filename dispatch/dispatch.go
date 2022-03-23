@@ -172,6 +172,7 @@ func (d *Dispatcher) run(it provider.AlertIterator) {
 
 			now := time.Now()
 			for _, r := range d.route.Match(alert.Labels) {
+				level.Debug(d.logger).Log("msg", "Processing alert", "alert", alert)
 				d.processAlert(alert, r)
 			}
 			d.metrics.processingDuration.Observe(time.Since(now).Seconds())
@@ -516,6 +517,7 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 	level.Debug(ag.logger).Log("msg", "flushing", "alerts", fmt.Sprintf("%v", alertsSlice))
 
 	if notify(alertsSlice...) {
+		level.Debug(ag.logger).Log("msg", "notify completed", "alerts", fmt.Sprintf("%v", alertsSlice))
 		for _, a := range alertsSlice {
 			// Only delete if the fingerprint has not been inserted
 			// again since we notified about it.
@@ -532,6 +534,8 @@ func (ag *aggrGroup) flush(notify func(...*types.Alert) bool) {
 				}
 			}
 		}
+	} else {
+		level.Debug(ag.logger).Log("msg", "notify failed", "alerts", fmt.Sprintf("%v", alertsSlice))
 	}
 }
 

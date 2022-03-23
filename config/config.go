@@ -167,7 +167,8 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, (*URL)(s))
 }
 
-// Load parses the YAML input s into a Config.
+// Load parses the YAML input s into a Config. 
+// amol/signoz 22/03/2022 - not used anymore 
 func Load(s string) (*Config, error) {
 	cfg := &Config{}
 	err := yaml.UnmarshalStrict([]byte(s), cfg)
@@ -192,6 +193,7 @@ func Load(s string) (*Config, error) {
 }
 
 // LoadFile parses the given YAML file into a Config.
+// amol/signoz 22/03/2022 - not used anymore 
 func LoadFile(filename string) (*Config, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -273,6 +275,9 @@ type Config struct {
 	Route             *Route             `yaml:"route,omitempty" json:"route,omitempty"`
 	InhibitRules      []*InhibitRule     `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
 	Receivers         []*Receiver        `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	// todo: templates will need a base directory mapping 
+	// as earlier version depended on the yaml file path to determine
+	// base dir but we no longer use yaml file 
 	Templates         []string           `yaml:"templates" json:"templates"`
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 
@@ -298,7 +303,38 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	// If a global block was open but empty the default global config is overwritten.
+	return c.Validate()
+}
+
+func (c *Config) SetOriginal() error {
+	
+	if c == nil {
+		return nil
+	}
+
+	configBytes, err := json.Marshal(*c)
+	if err != nil {
+		return err
+	}
+	c.original = string(configBytes)
+	return nil
+}
+
+// Validate checks the config and self-corrects whenever possible
+func (c *Config) Validate() error {
+	// Check if we have a root route. We cannot check for it in the
+	// UnmarshalYAML method because it won't be called if the input is empty
+	// (e.g. the config file is empty or only contains whitespace).
+	if c.Route == nil {
+		return  errors.New("no route provided in config")
+	}
+
+	// Check if continue in root route.
+	if c.Route.Continue {
+		return  errors.New("cannot have continue in root route")
+	}
+
+		// If a global block was open but empty the default global config is overwritten.
 	// We have to restore it here.
 	if c.Global == nil {
 		c.Global = &GlobalConfig{}
@@ -323,8 +359,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if wh.HTTPConfig == nil {
 				wh.HTTPConfig = c.Global.HTTPConfig
 			}
+			if err := wh.Validate(); err != nil {
+				return err
+			}
 		}
 		for _, ec := range rcv.EmailConfigs {
+			
 			if ec.Smarthost.String() == "" {
 				if c.Global.SMTPSmarthost.String() == "" {
 					return fmt.Errorf("no global SMTP smarthost set")
@@ -356,6 +396,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ec.RequireTLS = new(bool)
 				*ec.RequireTLS = c.Global.SMTPRequireTLS
 			}
+			if err := ec.Validate(); err != nil {
+				return err
+			}
 		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc.HTTPConfig == nil {
@@ -367,6 +410,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				}
 				sc.APIURL = c.Global.SlackAPIURL
 				sc.APIURLFile = c.Global.SlackAPIURLFile
+			}
+
+			if err := sc.Validate(); err != nil {
+				return err
 			}
 		}
 		for _, poc := range rcv.PushoverConfigs {
@@ -768,8 +815,9 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // A Route is a node that contains definitions of how to handle alerts.
 type Route struct {
+	
 	Receiver string `yaml:"receiver,omitempty" json:"receiver,omitempty"`
-
+	
 	GroupByStr []string          `yaml:"group_by,omitempty" json:"group_by,omitempty"`
 	GroupBy    []model.LabelName `yaml:"-" json:"-"`
 	GroupByAll bool              `yaml:"-" json:"-"`
@@ -785,6 +833,12 @@ type Route struct {
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
 	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
+
+}
+
+// Key returns unique identification of route 
+func (r *Route) Key() string {
+	return r.Receiver
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Route.

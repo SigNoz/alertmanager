@@ -175,6 +175,14 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
+	
+	return c.Validate()
+}
+
+// Validate confirms the structure of Emailconfig and fills in 
+// gaps that can be fixed. Originally part of UnmarshalYAML(), 
+// moved here as we no longer use YAML files
+func (c *EmailConfig) Validate() error{
 	if c.To == "" {
 		return fmt.Errorf("missing to address in email config")
 	}
@@ -189,9 +197,8 @@ func (c *EmailConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	c.Headers = normalizedHeaders
 
-	return nil
+	return nil 
 }
-
 // PagerdutyConfig configures notifications via PagerDuty.
 type PagerdutyConfig struct {
 	NotifierConfig `yaml:",inline" json:",inline"`
@@ -373,10 +380,17 @@ func (c *SlackConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
+	return c.Validate()
+}
+
+// Validate checks the structure and confirms if 
+// slack config is valid. Originally this code 
+// was in UnmarshalYAML() but moved here as we 
+// dont use YAML files
+func (c *SlackConfig) Validate() error {
 	if c.APIURL != nil && len(c.APIURLFile) > 0 {
 		return fmt.Errorf("at most one of api_url & api_url_file must be configured")
 	}
-
 	return nil
 }
 
@@ -398,6 +412,11 @@ func (c *WebhookConfig) Validate() error {
 	if c.URL == nil {
 		return fmt.Errorf("url is missing on webconfig")
 	}
+	
+	if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
+		return fmt.Errorf("scheme required for webhook url")
+	}
+
 	if c.HTTPConfig != nil {
 		if err := c.HTTPConfig.Validate(); err != nil {
 			return err
@@ -413,14 +432,8 @@ func (c *WebhookConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal((*plain)(c)); err != nil {
 		return err
 	}
-	if c.URL == nil {
-		return fmt.Errorf("missing URL in webhook config")
-	}
-	if c.URL.Scheme != "https" && c.URL.Scheme != "http" {
-		return fmt.Errorf("scheme required for webhook url")
-	}
-
-	return nil
+	 
+	return c.Validate()
 }
 
 // WechatConfig configures notifications via Wechat.

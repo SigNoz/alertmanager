@@ -54,19 +54,9 @@ func (api *API) addRoute(w http.ResponseWriter, req *http.Request) {
 	if err := <-api.updateConfigErrCh; err != nil {
 		api.respondError(w, apiError{err: err, typ: errorInternal}, fmt.Sprintf("failed to update channel (%s)", receiver.Name))
 		return 
-	} else {
-
-		// update commplete, lets reload the alert manager 
-		errc := make(chan error)
-		defer close(errc)
-
-		// send reload signal 
-		api.reloadCh <- errc
-
-		if err := <-errc; err != nil {
-			api.respondError(w, apiError{err: err, typ: errorInternal}, fmt.Sprintf("failed to reload alert manager after update of channel (%s)", receiver.Name))		}
-	}
+	}  
 	
+	api.respond(w, nil)
 }
 
 // editRoute re-writes route and receiver configuration. 
@@ -103,23 +93,13 @@ func (api *API) editRoute(w http.ResponseWriter, req *http.Request) {
 		},
 	}
 
-	// write Route to disk 
+	// write route and reload config 
 	api.updateConfigCh <- &cr
 
 	if err := <-api.updateConfigErrCh; err != nil {
 		api.respondError(w, apiError{err: err, typ: errorInternal}, fmt.Sprintf("failed to update channel (%s)", receiver.Name))
-	} else {
-
-		// update commplete, lets reload the alert manager 
-		errc := make(chan error)
-		defer close(errc)
-
-		// send reload signal 
-		api.reloadCh <- errc
-
-		if err := <-errc; err != nil {
-			api.respondError(w, apiError{err: err, typ: errorInternal}, fmt.Sprintf("failed to reload alert manager after update of channel (%s)", receiver.Name))		}
-	}
+	} 
+	api.respond(w, nil)
 }
 
 // deleteRoute removes the receiver record and currespoding 
@@ -155,16 +135,6 @@ func (api *API) deleteRoute(w http.ResponseWriter, req *http.Request) {
 
 	if err := <-api.updateConfigErrCh; err != nil {
 		api.respondError(w, apiError{err: err, typ: errorInternal}, fmt.Sprintf("failed to delete channel (%s)", receiver.Name))
-	} else {
-
-		// update commplete, lets reload the alert manager 
-		errc := make(chan error)
-		defer close(errc)
-
-		// send reload signal 
-		api.reloadCh <- errc
-
-		if err := <-errc; err != nil {
-			api.respondError(w, apiError{err: err, typ: errorInternal}, fmt.Sprintf("failed to reload alert manager after delete of channel (%s)", receiver.Name))		}
-	}
+	} 
+	api.respond(w, nil)
 }
