@@ -1,5 +1,10 @@
 package config
 
+import (
+	"time"
+	"github.com/prometheus/common/model"
+)
+
 // ConfigLoader loads config for co-ordinator
 type ConfigLoader interface {
 	Load(c *Config) error
@@ -9,7 +14,8 @@ type ConfigLoader interface {
 func InitConfig() *Config {
 	global:= DefaultGlobalConfig()
 	
-	// tood: fetch this from config file or cli params
+	global.ResolveTimeout = model.Duration(1 * time.Minute)
+
 	global.SMTPSmarthost = HostPort {
 		Host: "localhost",
 		Port: "25",

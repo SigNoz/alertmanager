@@ -54,7 +54,7 @@ func (cl *configLoader) prepare(c *config.Config) error {
 	channels, err := cl.getChannels()
 	
 	if err != nil {
-		return errors.Wrap(err, "received an error from from query service while fetching config")
+		return errors.Wrap(err, "received an error from query service while fetching config")
 	}
 
 	if len(channels) == 0 {
@@ -104,21 +104,22 @@ func (cl *configLoader) getChannels() ([]channelItem, error) {
 	resp, err := http.Get(cl.channelURL)
 	
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error in http get")
 	}
 
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 		
 	if err != nil {
-		return result, err 
+		return result, errors.Wrap(err, "failed to read response body") 
 	}
 
 	var apiResponse channelResponse
 	err = json.Unmarshal(body, &apiResponse)
 	
 	if err != nil {
-		return result, err 
+		level.Error(cl.logger).Log("msg", "failed to unmarshal api response", "response", body, "api", cl.channelURL)
+		return result, errors.Wrap(err, "failed to unmarshal api response") 
 	}
 	
 	channelData :=  apiResponse.Data
