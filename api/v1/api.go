@@ -83,7 +83,7 @@ type API struct {
 	// reload config
 	reloadCh chan<- chan error
 	
-	// write config to disk
+	// update config
 	updateConfigCh chan interface{}
 	updateConfigErrCh chan error
 }
