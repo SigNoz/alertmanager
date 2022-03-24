@@ -1,9 +1,9 @@
 package config
 
 import (
-	"time"
-	"github.com/prometheus/common/model"
-	"github.com/prometheus/alertmanager/constants"
+	"io/ioutil"
+	"path/filepath"
+	"gopkg.in/yaml.v2"
 )
 
 // ConfigLoader loads config for co-ordinator
@@ -11,45 +11,32 @@ type ConfigLoader interface {
 	Load(c *Config) error
 }
 
-// InitConfig returns a config at the time of initialization
-func InitConfig() *Config {
-	global := initGlobal()
 
-	return &Config {
-		Global: global,
-		Route: &Route{
-			Receiver: "default-receiver",
-		},
-		Receivers: []*Receiver{
-			&Receiver{
-				Name: "default-receiver", 
-				EmailConfigs: []*EmailConfig{
-					&EmailConfig{
-						NotifierConfig: NotifierConfig{
-							VSendResolved: false,
-						},
-						To: "default@email.com",
-						From: "alertmanager@example.org",
-						HTML: DefaultEmailConfig.HTML,
-				},
-			},
-		},
-	},
+// configFileLoader is default config loader that reads
+// from yaml file. This is primarily meant for test coverage
+type configFileLoader struct {
+	filePath string
+}
+
+func NewConfigFileLoader(filePath string) ConfigLoader {
+	return &configFileLoader{
+		filePath: filePath,
 	}
 }
 
-func initGlobal() *GlobalConfig {
-	global := DefaultGlobalConfig()
-	
-	resolveMinutes := constants.GetOrDefaultEnvInt("ALERTMANAGER_RESOLVE_TIMEOUT", 5)
-	global.ResolveTimeout = model.Duration(time.Duration(resolveMinutes) * time.Minute)
-
-	global.SMTPSmarthost = HostPort {
-		Host: constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_HOST", "localhost"),
-		Port: constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_PORT", "25"),
+func (cfl *configFileLoader) Load(c *Config) error {
+	content, err := ioutil.ReadFile(cfl.filePath)
+	if err != nil {
+		return err
 	}
 
-	global.SMTPFrom = constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_FROM","alertmanager@signoz.io")
+	err = yaml.UnmarshalStrict(content, c)
+	if err != nil {
+		return err
+	}
 	
-	return &global
+	c.original = string(content)
+	resolveFilepaths(filepath.Dir(cfl.filePath), c)
+	return c.Validate()
 }
+

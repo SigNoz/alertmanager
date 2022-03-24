@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 
+	"github.com/prometheus/alertmanager/constants"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/timeinterval"
 )
@@ -168,7 +169,7 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 }
 
 // Load parses the YAML input s into a Config. 
-// amol/signoz 22/03/2022 - not used anymore 
+// amol/signoz 22/03/2022 - used only by test cases
 func Load(s string) (*Config, error) {
 	cfg := &Config{}
 	err := yaml.UnmarshalStrict([]byte(s), cfg)
@@ -193,7 +194,7 @@ func Load(s string) (*Config, error) {
 }
 
 // LoadFile parses the given YAML file into a Config.
-// amol/signoz 22/03/2022 - not used anymore 
+// amol/signoz 22/03/2022 - used only by test cases
 func LoadFile(filename string) (*Config, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -283,6 +284,33 @@ type Config struct {
 
 	// original is the input from which the config was parsed.
 	original string
+}
+
+// InitConfig returns a config at the time of initialization.
+func InitConfig() *Config {
+	global := DefaultGlobalConfig()
+
+	return &Config {
+		Global: &global,
+		Route: &Route{
+			Receiver: "default-receiver",
+		},
+		Receivers: []*Receiver{
+			&Receiver{
+				Name: "default-receiver", 
+				EmailConfigs: []*EmailConfig{
+					&EmailConfig{
+						NotifierConfig: NotifierConfig{
+							VSendResolved: false,
+						},
+						To: "default@email.com",
+						From: "alertmanager@example.org",
+						HTML: DefaultEmailConfig.HTML,
+				},
+			},
+		},
+	},
+	}
 }
 
 func (c Config) String() string {
@@ -672,10 +700,22 @@ func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
 // DefaultGlobalConfig returns GlobalConfig with default values.
 func DefaultGlobalConfig() GlobalConfig {
 	var defaultHTTPConfig = commoncfg.DefaultHTTPClientConfig
-	return GlobalConfig{
-		ResolveTimeout: model.Duration(5 * time.Minute),
-		HTTPConfig:     &defaultHTTPConfig,
+	
+	resolveMinutes := constants.GetOrDefaultEnvInt("ALERTMANAGER_RESOLVE_TIMEOUT", 5)
+	resolveTimeout := model.Duration(time.Duration(resolveMinutes) * time.Minute)
 
+	defaultSMTPSmarthost := HostPort {
+		Host: constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_HOST", "localhost"),
+		Port: constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_PORT", "25"),
+	}
+
+	defaultSMTPFrom := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_FROM","alertmanager@signoz.io")
+	
+	return GlobalConfig{
+		ResolveTimeout:  resolveTimeout,
+		HTTPConfig:      &defaultHTTPConfig,
+		SMTPSmarthost:	 defaultSMTPSmarthost,
+		SMTPFrom:				 defaultSMTPFrom,
 		SMTPHello:       "localhost",
 		SMTPRequireTLS:  true,
 		PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
