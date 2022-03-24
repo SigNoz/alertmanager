@@ -260,6 +260,7 @@ type Alertmanager struct {
 func (am *Alertmanager) Start() {
 	args := []string{
 		"--config.file", am.confFile.Name(),
+		"--config.from", "file",
 		"--log.level", "debug",
 		"--web.listen-address", am.apiAddr,
 		"--storage.path", am.dir,

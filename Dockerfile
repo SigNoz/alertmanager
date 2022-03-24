@@ -4,7 +4,6 @@ FROM alpine:3.7
 RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 # set working directory
 
-
 COPY amtool       /bin/amtool
 COPY alertmanager /bin/alertmanager
 COPY examples/ha/alertmanager.yml      /etc/alertmanager/alertmanager.yml

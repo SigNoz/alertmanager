@@ -189,7 +189,9 @@ func run() int {
 	}
 
 	var (
-		queryServiceURL      = kingpin.Flag("queryService.url", "Query service URL for retrieving config updates").Default("localhost:8080").String()
+		queryServiceURL = kingpin.Flag("queryService.url", "Query service URL for retrieving config updates").Default("localhost:8080").String()
+		configFile      = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
+		configMode      = kingpin.Flag("config.from", "Config mode: file or qs").Default("qs").String()
 		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
@@ -401,12 +403,22 @@ func run() int {
 	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer)
 	configLogger := log.With(logger, "component", "configuration")
 	
-	configLoader, err := queryservice.NewConfigLoader(queryServiceURL, configLogger)
-	if err != nil {
-		level.Error(logger).Log("msg", "failed to initiate config from loader", "err", err)
-		return 1
+	var configLoader config.ConfigLoader 
+	
+	if *configMode == "file" {
+		if configFile != nil {
+			configLoader = config.NewConfigFileLoader(*configFile)
+		} else {
+			panic(fmt.Errorf("config file must be provided when config.from = file"))
+		}
+	} else {
+		configLoader, err = queryservice.NewConfigLoader(queryServiceURL, configLogger)
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to initiate config from query service", "err", err)
+			return 1
+		}
 	}
-
+	
 	configCoordinator := config.NewCoordinator(
 		configLoader,
 		prometheus.DefaultRegisterer,
