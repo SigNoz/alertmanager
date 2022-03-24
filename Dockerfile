@@ -17,5 +17,5 @@ EXPOSE     9093
 VOLUME     [ "/alertmanager" ]
 WORKDIR    /alertmanager
 ENTRYPOINT [ "/bin/alertmanager" ]
-CMD        [ "--queryService.url=localhost:8080", \
+CMD        [ "--queryService.url=https://localhost:8080", \
              "--storage.path=/alertmanager" ]
