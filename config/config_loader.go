@@ -3,6 +3,7 @@ package config
 import (
 	"time"
 	"github.com/prometheus/common/model"
+	"github.com/prometheus/alertmanager/constants"
 )
 
 // ConfigLoader loads config for co-ordinator
@@ -12,17 +13,10 @@ type ConfigLoader interface {
 
 // InitConfig returns a config at the time of initialization
 func InitConfig() *Config {
-	global:= DefaultGlobalConfig()
-	
-	global.ResolveTimeout = model.Duration(1 * time.Minute)
+	global := initGlobal()
 
-	global.SMTPSmarthost = HostPort {
-		Host: "localhost",
-		Port: "25",
-	}
-	global.SMTPFrom = "alertmanager@signoz.io"
 	return &Config {
-		Global: &global,
+		Global: global,
 		Route: &Route{
 			Receiver: "default-receiver",
 		},
@@ -42,4 +36,20 @@ func InitConfig() *Config {
 		},
 	},
 	}
+}
+
+func initGlobal() *GlobalConfig {
+	global := DefaultGlobalConfig()
+	
+	resolveMinutes := constants.GetOrDefaultEnvInt("ALERTMANAGER_RESOLVE_TIMEOUT", 5)
+	global.ResolveTimeout = model.Duration(time.Duration(resolveMinutes) * time.Minute)
+
+	global.SMTPSmarthost = HostPort {
+		Host: constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_HOST", "localhost"),
+		Port: constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_PORT", "25"),
+	}
+
+	global.SMTPFrom = constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_FROM","alertmanager@signoz.io")
+	
+	return &global
 }
