@@ -432,6 +432,7 @@ func (ag *aggrGroup) run(nf notifyFunc) {
 	for {
 		select {
 		case now := <-ag.next.C:
+
 			// Give the notifications time until the next flush to
 			// finish before terminating them.
 			ctx, cancel := context.WithTimeout(ag.ctx, ag.timeout(ag.opts.GroupInterval))
