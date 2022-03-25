@@ -86,7 +86,6 @@ type attachment struct {
 
 // Notify implements the Notifier interface.
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
-
 	var err error
 	var (
 		data     = notify.GetTemplateData(ctx, n.tmpl, as, n.logger)
@@ -188,7 +187,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		}
 		u = string(content)
 	}
-	
+
 	resp, err := notify.PostJSON(ctx, n.client, u, &buf)
 	if err != nil {
 		return true, notify.RedactURL(err)
