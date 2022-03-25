@@ -192,6 +192,11 @@ func run() int {
 		queryServiceURL = kingpin.Flag("queryService.url", "Query service URL for retrieving config updates").Default("localhost:8080").String()
 		configFile      = kingpin.Flag("config.file", "Alertmanager configuration file name.").Default("alertmanager.yml").String()
 		configMode      = kingpin.Flag("config.from", "Config mode: file or qs").Default("qs").String()
+		resolveTimeout  = kingpin.Flag("config.resolveTimeout", "How long to wait before auto-resolving an alert").Default("5m").Duration()
+		groupInterval   = kingpin.Flag("config.groupInterval", "How long to wait before sending group notifications again").Default("5m").Duration()
+		groupWait   		= kingpin.Flag("config.groupWait", "How long to wait before sending first group notification").Default("30s").Duration()
+		repeatInterval  = kingpin.Flag("config.repeatInterval", "Repeat interval").Default("4h").Duration()
+
 		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
@@ -419,7 +424,15 @@ func run() int {
 		}
 	}
 	
+	configOpts := &config.ConfigOpts {
+		ResolveTimeout: resolveTimeout,
+		GroupWait: groupWait,
+		GroupInterval: groupInterval,
+		RepeatInterval: repeatInterval,
+	}
+	
 	configCoordinator := config.NewCoordinator(
+		configOpts,
 		configLoader,
 		prometheus.DefaultRegisterer,
 		configLogger,

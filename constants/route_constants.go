@@ -4,6 +4,8 @@ import (
 	"time"
 )
 
+// sets the environment vars but these can be overriden by 
+// command line args
 func RouteOptsGroupWait() time.Duration {
 	groupWaitInt := GetOrDefaultEnvInt("ALERTMANAGER_GROUP_WAIT", 30)
 	return time.Duration(groupWaitInt) * time.Second

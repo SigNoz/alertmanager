@@ -27,6 +27,7 @@ import (
 // Coordinator coordinates Alertmanager configurations beyond the lifetime of a
 // single configuration.
 type Coordinator struct {
+	configOpts 		 *ConfigOpts
 	configLoader 	 ConfigLoader
 	logger         log.Logger
 
@@ -43,10 +44,11 @@ type Coordinator struct {
 // NewCoordinator returns a new coordinator with the given configuration file
 // path. It does not yet load the configuration from file. This is done in
 // `Reload()`.
-func NewCoordinator(configLoader ConfigLoader, r prometheus.Registerer, l log.Logger) *Coordinator {
+func NewCoordinator(configOpts *ConfigOpts, configLoader ConfigLoader, r prometheus.Registerer, l log.Logger) *Coordinator {
 	c := &Coordinator{
 		configLoader: configLoader,
 		logger:         l,
+		configOpts: configOpts,
 	}
 
 	c.registerMetrics(r)
@@ -140,7 +142,7 @@ func (c *Coordinator) Reload() error {
 		"msg", "Loading a new configuration",
 	)
 	
-	conf := InitConfig()
+	conf := InitConfig(c.configOpts)
 
 	if err := c.configLoader.Load(conf); err != nil {
 		level.Error(c.logger).Log(

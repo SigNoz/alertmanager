@@ -286,15 +286,43 @@ type Config struct {
 	original string
 }
 
+type ConfigOpts struct {
+	ResolveTimeout *time.Duration
+	GroupInterval *time.Duration
+	GroupWait *time.Duration
+	RepeatInterval *time.Duration
+}
+
 // InitConfig returns a config at the time of initialization.
-func InitConfig() *Config {
+func InitConfig(opts *ConfigOpts) *Config {
 	global := DefaultGlobalConfig()
+
+	if opts.ResolveTimeout != nil {
+		global.ResolveTimeout = model.Duration(*opts.ResolveTimeout)
+	}
+
+	route := &Route{
+		Receiver: "default-receiver",
+	}
+
+	if opts.GroupInterval != nil {
+		ginterval := model.Duration(*opts.GroupInterval)
+		route.GroupInterval = &ginterval
+	}
+	
+	if opts.GroupWait != nil {
+		gwait := model.Duration(*opts.GroupWait)
+		route.GroupWait = &gwait
+	}
+
+	if opts.RepeatInterval != nil {
+		repeatint := model.Duration(*opts.RepeatInterval)
+		route.RepeatInterval = &repeatint
+	}
 
 	return &Config {
 		Global: &global,
-		Route: &Route{
-			Receiver: "default-receiver",
-		},
+		Route: route,
 		Receivers: []*Receiver{
 			&Receiver{
 				Name: "default-receiver", 
