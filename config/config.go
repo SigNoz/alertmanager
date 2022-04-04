@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/common/model"
 	"gopkg.in/yaml.v2"
 
+	"github.com/prometheus/alertmanager/constants"
 	"github.com/prometheus/alertmanager/pkg/labels"
 	"github.com/prometheus/alertmanager/timeinterval"
 )
@@ -167,7 +168,8 @@ func (s *SecretURL) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, (*URL)(s))
 }
 
-// Load parses the YAML input s into a Config.
+// Load parses the YAML input s into a Config. 
+// amol/signoz 22/03/2022 - used only by test cases
 func Load(s string) (*Config, error) {
 	cfg := &Config{}
 	err := yaml.UnmarshalStrict([]byte(s), cfg)
@@ -187,10 +189,12 @@ func Load(s string) (*Config, error) {
 	}
 
 	cfg.original = s
+
 	return cfg, nil
 }
 
 // LoadFile parses the given YAML file into a Config.
+// amol/signoz 22/03/2022 - used only by test cases
 func LoadFile(filename string) (*Config, error) {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -200,7 +204,7 @@ func LoadFile(filename string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	
 	resolveFilepaths(filepath.Dir(filename), cfg)
 	return cfg, nil
 }
@@ -272,11 +276,69 @@ type Config struct {
 	Route             *Route             `yaml:"route,omitempty" json:"route,omitempty"`
 	InhibitRules      []*InhibitRule     `yaml:"inhibit_rules,omitempty" json:"inhibit_rules,omitempty"`
 	Receivers         []*Receiver        `yaml:"receivers,omitempty" json:"receivers,omitempty"`
+	// todo: templates will need a base directory mapping 
+	// as earlier version depended on the yaml file path to determine
+	// base dir but we no longer use yaml file 
 	Templates         []string           `yaml:"templates" json:"templates"`
 	MuteTimeIntervals []MuteTimeInterval `yaml:"mute_time_intervals,omitempty" json:"mute_time_intervals,omitempty"`
 
 	// original is the input from which the config was parsed.
 	original string
+}
+
+type ConfigOpts struct {
+	ResolveTimeout *time.Duration
+	GroupInterval *time.Duration
+	GroupWait *time.Duration
+	RepeatInterval *time.Duration
+}
+
+// InitConfig returns a config at the time of initialization.
+func InitConfig(opts *ConfigOpts) *Config {
+	global := DefaultGlobalConfig()
+
+	if opts.ResolveTimeout != nil {
+		global.ResolveTimeout = model.Duration(*opts.ResolveTimeout)
+	}
+
+	route := &Route{
+		Receiver: "default-receiver",
+	}
+
+	if opts.GroupInterval != nil {
+		ginterval := model.Duration(*opts.GroupInterval)
+		route.GroupInterval = &ginterval
+	}
+	
+	if opts.GroupWait != nil {
+		gwait := model.Duration(*opts.GroupWait)
+		route.GroupWait = &gwait
+	}
+
+	if opts.RepeatInterval != nil {
+		repeatint := model.Duration(*opts.RepeatInterval)
+		route.RepeatInterval = &repeatint
+	}
+
+	return &Config {
+		Global: &global,
+		Route: route,
+		Receivers: []*Receiver{
+			&Receiver{
+				Name: "default-receiver", 
+				EmailConfigs: []*EmailConfig{
+					&EmailConfig{
+						NotifierConfig: NotifierConfig{
+							VSendResolved: false,
+						},
+						To: "default@email.com",
+						From: "alertmanager@example.org",
+						HTML: DefaultEmailConfig.HTML,
+				},
+			},
+		},
+	},
+	}
 }
 
 func (c Config) String() string {
@@ -297,7 +359,38 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
-	// If a global block was open but empty the default global config is overwritten.
+	return c.Validate()
+}
+
+func (c *Config) SetOriginal() error {
+	
+	if c == nil {
+		return nil
+	}
+
+	configBytes, err := json.Marshal(*c)
+	if err != nil {
+		return err
+	}
+	c.original = string(configBytes)
+	return nil
+}
+
+// Validate checks the config and self-corrects whenever possible
+func (c *Config) Validate() error {
+	// Check if we have a root route. We cannot check for it in the
+	// UnmarshalYAML method because it won't be called if the input is empty
+	// (e.g. the config file is empty or only contains whitespace).
+	if c.Route == nil {
+		return  errors.New("no route provided in config")
+	}
+
+	// Check if continue in root route.
+	if c.Route.Continue {
+		return  errors.New("cannot have continue in root route")
+	}
+
+		// If a global block was open but empty the default global config is overwritten.
 	// We have to restore it here.
 	if c.Global == nil {
 		c.Global = &GlobalConfig{}
@@ -322,8 +415,12 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if wh.HTTPConfig == nil {
 				wh.HTTPConfig = c.Global.HTTPConfig
 			}
+			if err := wh.Validate(); err != nil {
+				return err
+			}
 		}
 		for _, ec := range rcv.EmailConfigs {
+			
 			if ec.Smarthost.String() == "" {
 				if c.Global.SMTPSmarthost.String() == "" {
 					return fmt.Errorf("no global SMTP smarthost set")
@@ -355,6 +452,9 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				ec.RequireTLS = new(bool)
 				*ec.RequireTLS = c.Global.SMTPRequireTLS
 			}
+			if err := ec.Validate(); err != nil {
+				return err
+			}
 		}
 		for _, sc := range rcv.SlackConfigs {
 			if sc.HTTPConfig == nil {
@@ -366,6 +466,10 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 				}
 				sc.APIURL = c.Global.SlackAPIURL
 				sc.APIURLFile = c.Global.SlackAPIURLFile
+			}
+
+			if err := sc.Validate(); err != nil {
+				return err
 			}
 		}
 		for _, poc := range rcv.PushoverConfigs {
@@ -493,6 +597,100 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return checkTimeInterval(c.Route, tiNames)
 }
 
+// AddRoute adds a new route to configuration. 
+// the assumption is receiver can have max one route 
+// This method is intended for local disk updates only
+func (c *Config) AddRoute(r *Route, rcv *Receiver) error {
+	
+	if rcv == nil || r == nil {
+		return fmt.Errorf("adding a route requires both route and receiver")
+	}
+
+	if r.Receiver == "" || rcv.Name == "" {
+		return fmt.Errorf("receiver is mandatory in route and receiver")
+	}
+	
+	// check that receiver name is not already used
+	for _, receiver := range c.Receivers {
+		if receiver.Name == rcv.Name || receiver.Name == r.Receiver {
+			return fmt.Errorf("the channel name has to be unique, please choose a different name")
+		}
+	}
+	// must set continue on route to allow subsequent 
+	// routes to work. may have to rethink on this after 
+	// adding matchers and filters in upstream 
+	r.Continue = true
+
+	c.Route.Routes = append(c.Route.Routes, r)
+	c.Receivers = append(c.Receivers, rcv)
+	return nil
+}
+
+// EditRoute changes an existing route in configuration. 
+// the assumption is receiver can have max one route 
+// This method is intended for local disk updates only
+func (c *Config) EditRoute(r *Route, rcv *Receiver) error {
+	
+	if rcv == nil || r == nil {
+		return fmt.Errorf("adding a route requires both route and receiver")
+	}
+
+	if r.Receiver == "" || rcv.Name == "" {
+		return fmt.Errorf("receiver is mandatory in route and receiver")
+	}
+
+	// find and update receiver 
+	for i, receiver := range c.Receivers {
+		if receiver.Name == rcv.Name {
+			c.Receivers[i] = rcv
+		}
+	}
+
+	// assumption: the route hierarchy has max 1 level
+	// may have to rethink this after adding matchers and filters
+	// in upstream. presently we only have top level, no filter routes
+	routes := c.Route.Routes
+	for i, route := range routes {
+		if route.Receiver == r.Receiver {
+			c.Route.Routes[i] = r
+			break
+		}
+	}
+ 
+
+	return nil
+}
+
+// DeleteRoute deletes an existing route in the configuration. 
+// the assumption is receiver can have max one route and 
+// the route hierachy has max of 1 level
+// This method is intended for local disk file updates only (not in-memory updates)
+func (c *Config) DeleteRoute(name string) error {
+	
+	if name == "" {
+		return fmt.Errorf("delete receiver requires the receiver name")
+	}
+
+
+	// assumption: the route hierarchy has max 1 level
+	routes := c.Route.Routes
+	for i, r := range routes {
+		if r.Receiver == name {
+			c.Route.Routes = append(routes[:i], routes[i+1:]...)
+			break
+		}
+	}
+
+	// find receiver and delete 
+	for i, receiver := range c.Receivers {
+		if receiver.Name == name {
+			c.Receivers = append(c.Receivers[:i], c.Receivers[i+1:]...)
+			break
+		}
+	}
+	return nil
+}
+
 // checkReceiver returns an error if a node in the routing tree
 // references a receiver not in the given map.
 func checkReceiver(r *Route, receivers map[string]struct{}) error {
@@ -530,10 +728,22 @@ func checkTimeInterval(r *Route, timeIntervals map[string]struct{}) error {
 // DefaultGlobalConfig returns GlobalConfig with default values.
 func DefaultGlobalConfig() GlobalConfig {
 	var defaultHTTPConfig = commoncfg.DefaultHTTPClientConfig
-	return GlobalConfig{
-		ResolveTimeout: model.Duration(5 * time.Minute),
-		HTTPConfig:     &defaultHTTPConfig,
+	
+	resolveMinutes := constants.GetOrDefaultEnvInt("ALERTMANAGER_RESOLVE_TIMEOUT", 5)
+	resolveTimeout := model.Duration(time.Duration(resolveMinutes) * time.Minute)
 
+	defaultSMTPSmarthost := HostPort {
+		Host: constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_HOST", "localhost"),
+		Port: constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_PORT", "25"),
+	}
+
+	defaultSMTPFrom := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_FROM","alertmanager@signoz.io")
+	
+	return GlobalConfig{
+		ResolveTimeout:  resolveTimeout,
+		HTTPConfig:      &defaultHTTPConfig,
+		SMTPSmarthost:	 defaultSMTPSmarthost,
+		SMTPFrom:				 defaultSMTPFrom,
 		SMTPHello:       "localhost",
 		SMTPRequireTLS:  true,
 		PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
@@ -649,7 +859,9 @@ type GlobalConfig struct {
 	SMTPAuthSecret     Secret     `yaml:"smtp_auth_secret,omitempty" json:"smtp_auth_secret,omitempty"`
 	SMTPAuthIdentity   string     `yaml:"smtp_auth_identity,omitempty" json:"smtp_auth_identity,omitempty"`
 	SMTPRequireTLS     bool       `yaml:"smtp_require_tls" json:"smtp_require_tls,omitempty"`
-	SlackAPIURL        *SecretURL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
+	// Changing from SecretURL to URL, for supporting persistence of 
+	// runtime config changes
+	SlackAPIURL        *URL `yaml:"slack_api_url,omitempty" json:"slack_api_url,omitempty"`
 	SlackAPIURLFile    string     `yaml:"slack_api_url_file,omitempty" json:"slack_api_url_file,omitempty"`
 	PagerdutyURL       *URL       `yaml:"pagerduty_url,omitempty" json:"pagerduty_url,omitempty"`
 	OpsGenieAPIURL     *URL       `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
@@ -671,8 +883,9 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // A Route is a node that contains definitions of how to handle alerts.
 type Route struct {
+	
 	Receiver string `yaml:"receiver,omitempty" json:"receiver,omitempty"`
-
+	
 	GroupByStr []string          `yaml:"group_by,omitempty" json:"group_by,omitempty"`
 	GroupBy    []model.LabelName `yaml:"-" json:"-"`
 	GroupByAll bool              `yaml:"-" json:"-"`
@@ -688,6 +901,12 @@ type Route struct {
 	GroupWait      *model.Duration `yaml:"group_wait,omitempty" json:"group_wait,omitempty"`
 	GroupInterval  *model.Duration `yaml:"group_interval,omitempty" json:"group_interval,omitempty"`
 	RepeatInterval *model.Duration `yaml:"repeat_interval,omitempty" json:"repeat_interval,omitempty"`
+
+}
+
+// Key returns unique identification of route 
+func (r *Route) Key() string {
+	return r.Receiver
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Route.
@@ -736,6 +955,16 @@ func (r *Route) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	return nil
+}
+
+func (r *Route) Walk(visit func(*Route)) {
+	visit(r)
+	if r.Routes == nil {
+		return
+	}
+	for i := range r.Routes {
+		r.Routes[i].Walk(visit)
+	}
 }
 
 // InhibitRule defines an inhibition rule that mutes alerts that match the
@@ -799,6 +1028,22 @@ type Receiver struct {
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
+}
+
+func (c *Receiver) Validate() error {
+	if c.Name == ""{
+		return fmt.Errorf("receiver name is mandatory")
+	}
+
+	if len(c.WebhookConfigs) > 0 {
+		for _, w := range c.WebhookConfigs {
+			if err := w.Validate(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface for Receiver.
@@ -943,3 +1188,4 @@ func (m Matchers) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(result)
 }
+

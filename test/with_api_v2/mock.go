@@ -23,9 +23,11 @@ import (
 	"time"
 
 	"github.com/go-openapi/strfmt"
+	//jsoniter "github.com/json-iterator/go"
 
 	"github.com/prometheus/alertmanager/api/v2/models"
 	"github.com/prometheus/alertmanager/notify/webhook"
+	// "github.com/prometheus/alertmanager/integrations/queryservice"
 )
 
 // At is a convenience method to allow for declarative syntax of Acceptance
@@ -336,4 +338,48 @@ func (ws *MockWebhook) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func (ws *MockWebhook) Address() string {
 	return ws.listener.Addr().String()
+}
+
+type MockQueryService struct {
+	listener net.Listener
+}
+
+func NewQueryService() *MockQueryService {
+	l, err := net.Listen("tcp4", "localhost:0")
+	if err != nil {
+		// TODO(fabxc): if shutdown of mock destinations ever becomes a concern
+		// we want to shut them down after test completion. Then we might want to
+		// log the error properly, too.
+		panic(err)
+	}
+	qs := &MockQueryService{
+		listener:  l,
+	}
+	go func() {
+		if err := http.Serve(l, qs); err != nil {
+			panic(err)
+		}
+	}()
+
+	return qs
+}
+
+
+func (ws *MockQueryService) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	/*json := jsoniter.ConfigCompatibleWithStandardLibrary
+
+	data := queryService.channelResponse{
+		Data: 
+	}
+	b, err := json.Marshal(&response{
+		Status: statusSuccess,
+		Data:   data,
+	})*/
+	b := []byte(`[]`)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(b); err != nil {
+		panic(err)
+	}
+	
 }
