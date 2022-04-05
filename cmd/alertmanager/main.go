@@ -194,8 +194,9 @@ func run() int {
 		configMode      = kingpin.Flag("config.from", "Config mode: file or qs").Default("qs").String()
 		resolveTimeout  = kingpin.Flag("config.resolveTimeout", "How long to wait before auto-resolving an alert").Default("5m").Duration()
 		groupInterval   = kingpin.Flag("config.groupInterval", "How long to wait before sending group notifications again").Default("5m").Duration()
-		groupWait   		= kingpin.Flag("config.groupWait", "How long to wait before sending first group notification").Default("30s").Duration()
+		groupWait       = kingpin.Flag("config.groupWait", "How long to wait before sending first group notification").Default("30s").Duration()
 		repeatInterval  = kingpin.Flag("config.repeatInterval", "Repeat interval").Default("4h").Duration()
+		groupBy         = kingpin.Flag("config.groupBy", "Group notifications together in each interval").Default("alertname").Strings()
 
 		dataDir         = kingpin.Flag("storage.path", "Base path for data storage.").Default("data/").String()
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
@@ -407,9 +408,9 @@ func run() int {
 	dispMetrics := dispatch.NewDispatcherMetrics(false, prometheus.DefaultRegisterer)
 	pipelineBuilder := notify.NewPipelineBuilder(prometheus.DefaultRegisterer)
 	configLogger := log.With(logger, "component", "configuration")
-	
-	var configLoader config.ConfigLoader 
-	
+
+	var configLoader config.ConfigLoader
+
 	if *configMode == "file" {
 		if configFile != nil {
 			configLoader = config.NewConfigFileLoader(*configFile)
@@ -423,14 +424,15 @@ func run() int {
 			return 1
 		}
 	}
-	
-	configOpts := &config.ConfigOpts {
+
+	configOpts := &config.ConfigOpts{
 		ResolveTimeout: resolveTimeout,
-		GroupWait: groupWait,
-		GroupInterval: groupInterval,
+		GroupWait:      groupWait,
+		GroupInterval:  groupInterval,
 		RepeatInterval: repeatInterval,
+		GroupByStr:     *groupBy,
 	}
-	
+
 	configCoordinator := config.NewCoordinator(
 		configOpts,
 		configLoader,
@@ -546,17 +548,17 @@ func run() int {
 		})
 		router = router.WithPrefix(*routePrefix)
 	}
-	
-	// webReload intitiates config reload 
+
+	// webReload intitiates config reload
 	webReload := make(chan chan error)
-	
-	// updateConfigCh updates config on the disk 
-	// and reloads the alert manager 
+
+	// updateConfigCh updates config on the disk
+	// and reloads the alert manager
 	updateConfigCh := make(chan interface{})
 	updateConfigErrCh := make(chan error)
 
 	ui.Register(router, webReload, logger)
-	
+
 	// webReload is included to support reload of alert manager
 	// after addition of new route or receiver from handler (API)
 	mux := api.Register(router, *routePrefix, webReload, updateConfigCh, updateConfigErrCh)
@@ -586,29 +588,29 @@ func run() int {
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		
+
 		<-hupReady
 		for {
 			select {
 			case <-hup:
 				// ignore error, already logged in `reload()`
 				_ = configCoordinator.Reload()
-			case errc := <-webReload: 
+			case errc := <-webReload:
 				errc <- configCoordinator.Reload()
 			case changes := <-updateConfigCh:
 				if req, ok := changes.(*config.ConfigChangeRequest); ok {
 					switch req.Action {
-						case config.AddRouteAction: 
-							// add route to disk config
-							updateConfigErrCh <- configCoordinator.AddRoute(req.Route, req.Receiver)
-						case config.EditRouteAction:
-							updateConfigErrCh <- configCoordinator.EditRoute(req.Route, req.Receiver)	
-						case config.DeleteRouteAction:
-							updateConfigErrCh <- configCoordinator.DeleteRoute(req.Receiver.Name)	
-						default:
-							updateConfigErrCh <- fmt.Errorf("functionality not implemented yet")		
-						}  
-					} else {	
+					case config.AddRouteAction:
+						// add route to disk config
+						updateConfigErrCh <- configCoordinator.AddRoute(req.Route, req.Receiver)
+					case config.EditRouteAction:
+						updateConfigErrCh <- configCoordinator.EditRoute(req.Route, req.Receiver)
+					case config.DeleteRouteAction:
+						updateConfigErrCh <- configCoordinator.DeleteRoute(req.Receiver.Name)
+					default:
+						updateConfigErrCh <- fmt.Errorf("functionality not implemented yet")
+					}
+				} else {
 					updateConfigErrCh <- fmt.Errorf("functionality not implemented yet")
 				}
 			}
