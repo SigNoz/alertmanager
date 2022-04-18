@@ -5,16 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/slack"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/template"
 	"github.com/prometheus/alertmanager/types"
+	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 )
 
@@ -163,9 +164,12 @@ func (api *API) testReceiver(w http.ResponseWriter, req *http.Request) {
 		api.respondError(w, apiError{typ: errorBadData, err: err}, nil)
 		return
 	}
+	userReceiverName := receiver.Name
 
 	if receiver.Name == "" {
-		receiver.Name = fmt.Sprintf("receiver-test-%d", rand.Intn(1000))
+		receiver.Name = fmt.Sprintf("test-%d", time.Now().Unix())
+	} else {
+		receiver.Name = fmt.Sprintf("test-%s", receiver.Name)
 	}
 
 	tmpl, err := template.FromGlobs(api.config.Templates...)
@@ -174,29 +178,34 @@ func (api *API) testReceiver(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// todo: get alert manager url
-	tmpl.ExternalURL, _ = url.Parse("http://localhost:9093")
+	// just setting a value here as the externalURL is un-used but needed
+	// for notify() to function
+	tmpl.ExternalURL, _ = url.Parse("http://signoz.io")
+
+	alertName := model.LabelValue(fmt.Sprintf("Test Alert (%s)", userReceiverName))
 
 	getDummyAlert := func() types.Alert {
 		return types.Alert{
 			Alert: model.Alert{
 				Labels: model.LabelSet{
-					"alertname": "TestAlert",
-					"severity":  "info",
+					"alertname": alertName,
+					"severity":  "critical",
 				},
 				Annotations: model.LabelSet{
-					"description": "Test Alert fired from SigNoz dashboard",
-					"summary":     "Test Alert fired from SigNoz dashboard",
+					"description": "Test alert fired from SigNoz dashboard",
+					"summary":     "Test alert fired from SigNoz dashboard",
 				},
 			},
 		}
 	}
+
 	getCtx := func(receiverName string) context.Context {
 		ctx := context.Background()
+		// GroupKey needed only for webhook messages
 		ctx = notify.WithGroupKey(ctx, "1")
 		ctx = notify.WithRepeatInterval(ctx, time.Hour)
 		ctx = notify.WithGroupLabels(ctx, model.LabelSet{
-			"alertname": "TestAlert",
+			"alertname": alertName,
 			"severity":  "info",
 		})
 		ctx = notify.WithReceiverName(ctx, receiverName)
@@ -206,6 +215,21 @@ func (api *API) testReceiver(w http.ResponseWriter, req *http.Request) {
 
 	if receiver.WebhookConfigs != nil {
 		notifier, err := webhook.New(receiver.WebhookConfigs[0], tmpl, api.logger)
+		if err != nil {
+			api.respondError(w, apiError{err: err, typ: errorInternal}, "failed to prepare message for select config")
+			return
+		}
+		ctx := getCtx(receiver.Name)
+		dummyAlert := getDummyAlert()
+		_, err = notifier.Notify(ctx, &dummyAlert)
+		if err != nil {
+			api.respondError(w, apiError{err: err, typ: errorInternal}, fmt.Sprintf("failed to send test message to channel (%s)", receiver.Name))
+			return
+		}
+	} else if receiver.SlackConfigs != nil {
+		slackConfig := receiver.SlackConfigs[0]
+		slackConfig.HTTPConfig = &commoncfg.HTTPClientConfig{}
+		notifier, err := slack.New(slackConfig, tmpl, api.logger)
 		if err != nil {
 			api.respondError(w, apiError{err: err, typ: errorInternal}, "failed to prepare message for select config")
 			return
