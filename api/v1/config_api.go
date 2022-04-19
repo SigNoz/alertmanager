@@ -11,6 +11,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/pagerduty"
 	"github.com/prometheus/alertmanager/notify/slack"
 	"github.com/prometheus/alertmanager/notify/webhook"
 	"github.com/prometheus/alertmanager/template"
@@ -241,6 +242,24 @@ func (api *API) testReceiver(w http.ResponseWriter, req *http.Request) {
 			api.respondError(w, apiError{err: err, typ: errorInternal}, fmt.Sprintf("failed to send test message to channel (%s)", receiver.Name))
 			return
 		}
+	} else if receiver.PagerdutyConfigs != nil {
+		pc := receiver.PagerdutyConfigs[0]
+		pc.HTTPConfig = &commoncfg.HTTPClientConfig{}
+		notifier, err := pagerduty.New(pc, tmpl, api.logger)
+		if err != nil {
+			api.respondError(w, apiError{err: err, typ: errorInternal}, "failed to prepare message for select config")
+			return
+		}
+		ctx := getCtx(receiver.Name)
+		dummyAlert := getDummyAlert()
+		_, err = notifier.Notify(ctx, &dummyAlert)
+		if err != nil {
+			api.respondError(w, apiError{err: err, typ: errorInternal}, fmt.Sprintf("failed to send test message to channel (%s)", receiver.Name))
+			return
+		}
+	} else {
+		api.respondError(w, apiError{err: fmt.Errorf("invalid receiver type"), typ: errorInternal}, fmt.Sprintf("failed to send test message to channel (%s)", receiver.Name))
+		return
 	}
 
 	api.respond(w, nil)
