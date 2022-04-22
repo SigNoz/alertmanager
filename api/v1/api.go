@@ -82,9 +82,9 @@ type API struct {
 
 	// reload config
 	reloadCh chan<- chan error
-	
+
 	// update config
-	updateConfigCh chan interface{}
+	updateConfigCh    chan interface{}
 	updateConfigErrCh chan error
 }
 
@@ -132,7 +132,8 @@ func (api *API) Register(r *route.Router, reloadCh chan<- chan error, updateConf
 
 	r.Get("/status", wrap(api.status))
 	r.Get("/receivers", wrap(api.receivers))
-	
+	r.Post("/testReceiver", wrap(api.testReceiver))
+
 	r.Get("/alerts", wrap(api.listAlerts))
 	r.Post("/alerts", wrap(api.addAlerts))
 
@@ -318,7 +319,6 @@ func (api *API) listAlerts(w http.ResponseWriter, r *http.Request) {
 
 	alerts := api.alerts.GetPending()
 	defer alerts.Close()
-	
 
 	api.mtx.RLock()
 	for a := range alerts.Next() {
@@ -467,7 +467,7 @@ func (api *API) insertAlerts(w http.ResponseWriter, r *http.Request, alerts ...*
 		}
 		validAlerts = append(validAlerts, a)
 	}
-	
+
 	if err := api.alerts.Put(validAlerts...); err != nil {
 		api.respondError(w, apiError{
 			typ: errorInternal,
@@ -823,4 +823,3 @@ func (api *API) receive(r *http.Request, v interface{}) error {
 	}
 	return nil
 }
-
