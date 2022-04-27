@@ -214,6 +214,9 @@ func (api *API) testReceiver(w http.ResponseWriter, req *http.Request) {
 		return ctx
 	}
 
+	// used to get default URLs like in case of pagerduty
+	defaultGlobalConfig := config.DefaultGlobalConfig()
+
 	if receiver.WebhookConfigs != nil {
 		notifier, err := webhook.New(receiver.WebhookConfigs[0], tmpl, api.logger)
 		if err != nil {
@@ -245,6 +248,7 @@ func (api *API) testReceiver(w http.ResponseWriter, req *http.Request) {
 	} else if receiver.PagerdutyConfigs != nil {
 		pc := receiver.PagerdutyConfigs[0]
 		pc.HTTPConfig = &commoncfg.HTTPClientConfig{}
+		pc.URL = defaultGlobalConfig.PagerdutyURL
 		notifier, err := pagerduty.New(pc, tmpl, api.logger)
 		if err != nil {
 			api.respondError(w, apiError{err: err, typ: errorInternal}, "failed to prepare message for select config")
