@@ -31,6 +31,12 @@ import (
 	"github.com/prometheus/alertmanager/types"
 )
 
+// list of labels not to be added to common labels
+var skipFromCommonLabels = map[string]bool{
+	"ruleId":     true,
+	"ruleSource": true,
+}
+
 // Template bundles a text and a html template instance.
 type Template struct {
 	text *tmpltext.Template
@@ -315,12 +321,16 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 
 	if len(alerts) >= 1 {
 		var (
-			commonLabels      = alerts[0].Labels.Clone()
-			commonAnnotations = alerts[0].Annotations.Clone()
+			commonLabels       = alerts[0].Labels.Clone()
+			commonAnnotations  = alerts[0].Annotations.Clone()
+			commonGeneratorURL = alerts[0].GeneratorURL
 		)
 		for _, a := range alerts[1:] {
 			if len(commonLabels) == 0 && len(commonAnnotations) == 0 {
 				break
+			}
+			if commonGeneratorURL == "" && a.GeneratorURL != "" {
+				commonGeneratorURL = a.GeneratorURL
 			}
 			for ln, lv := range commonLabels {
 				if a.Labels[ln] != lv {
@@ -332,12 +342,26 @@ func (t *Template) Data(recv string, groupLabels model.LabelSet, alerts ...*type
 					delete(commonAnnotations, an)
 				}
 			}
+			if a.GeneratorURL != commonGeneratorURL {
+				// two different rules in the same message, switch to top level
+				// domain
+				parsedRuleURL, err := url.Parse(commonGeneratorURL)
+				// proceed only if err is nil, else do nothing
+				if err == nil {
+					commonGeneratorURL = parsedRuleURL.Scheme + "://" + parsedRuleURL.Host + "/alerts"
+				}
+			}
 		}
 		for k, v := range commonLabels {
-			data.CommonLabels[string(k)] = string(v)
+			if ok := skipFromCommonLabels[string(k)]; !ok {
+				data.CommonLabels[string(k)] = string(v)
+			}
 		}
 		for k, v := range commonAnnotations {
 			data.CommonAnnotations[string(k)] = string(v)
+		}
+		if commonGeneratorURL != "" {
+			data.ExternalURL = commonGeneratorURL
 		}
 	}
 
