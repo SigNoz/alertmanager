@@ -97,9 +97,15 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	} else {
 		markdownIn = n.conf.MrkdwnIn
 	}
+	var titleLink string
+	if data.ExternalURL != "" {
+		titleLink = data.ExternalURL
+	} else {
+		titleLink = tmplText(n.conf.TitleLink)
+	}
 	att := &attachment{
 		Title:      tmplText(n.conf.Title),
-		TitleLink:  tmplText(n.conf.TitleLink),
+		TitleLink:  titleLink,
 		Pretext:    tmplText(n.conf.Pretext),
 		Text:       tmplText(n.conf.Text),
 		Fallback:   tmplText(n.conf.Fallback),
