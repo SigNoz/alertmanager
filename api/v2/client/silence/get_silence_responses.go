@@ -55,9 +55,8 @@ func (o *GetSilenceReader) ReadResponse(response runtime.ClientResponse, consume
 			return nil, err
 		}
 		return nil, result
-
 	default:
-		return nil, runtime.NewAPIError("unknown error", response, response.Code())
+		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
 	}
 }
 
@@ -66,7 +65,7 @@ func NewGetSilenceOK() *GetSilenceOK {
 	return &GetSilenceOK{}
 }
 
-/*GetSilenceOK handles this case with default header values.
+/* GetSilenceOK describes a response with status code 200, with default header values.
 
 Get silence response
 */
@@ -77,7 +76,6 @@ type GetSilenceOK struct {
 func (o *GetSilenceOK) Error() string {
 	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceOK  %+v", 200, o.Payload)
 }
-
 func (o *GetSilenceOK) GetPayload() *models.GettableSilence {
 	return o.Payload
 }
@@ -99,7 +97,7 @@ func NewGetSilenceNotFound() *GetSilenceNotFound {
 	return &GetSilenceNotFound{}
 }
 
-/*GetSilenceNotFound handles this case with default header values.
+/* GetSilenceNotFound describes a response with status code 404, with default header values.
 
 A silence with the specified ID was not found
 */
@@ -120,7 +118,7 @@ func NewGetSilenceInternalServerError() *GetSilenceInternalServerError {
 	return &GetSilenceInternalServerError{}
 }
 
-/*GetSilenceInternalServerError handles this case with default header values.
+/* GetSilenceInternalServerError describes a response with status code 500, with default header values.
 
 Internal server error
 */
@@ -131,7 +129,6 @@ type GetSilenceInternalServerError struct {
 func (o *GetSilenceInternalServerError) Error() string {
 	return fmt.Sprintf("[GET /silence/{silenceID}][%d] getSilenceInternalServerError  %+v", 500, o.Payload)
 }
-
 func (o *GetSilenceInternalServerError) GetPayload() string {
 	return o.Payload
 }

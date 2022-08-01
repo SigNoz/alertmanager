@@ -63,10 +63,10 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	if parent != nil {
 		opts = parent.RouteOpts
 	}
- 
+
 	if cr.Receiver != "" {
 		opts.Receiver = cr.Receiver
-	} 
+	}
 
 	if cr.GroupBy != nil {
 		opts.GroupBy = map[model.LabelName]struct{}{}
@@ -119,7 +119,7 @@ func NewRoute(cr *config.Route, parent *Route) *Route {
 	sort.Sort(matchers)
 
 	opts.MuteTimeIntervals = cr.MuteTimeIntervals
-	
+
 	fmt.Println("RouteOpts:", opts)
 
 	route := &Route{
@@ -141,6 +141,29 @@ func NewRoutes(croutes []*config.Route, parent *Route) []*Route {
 		res = append(res, NewRoute(cr, parent))
 	}
 	return res
+}
+
+// MatchWithReceiver does Match() with labelset and also
+// filters based on the preferred receivers. Sometimes alerts may
+// have preferred receiver target and this function is used to
+// match only routes with preferred receiver on them
+func (r *Route) MatchWithReceiver(lset model.LabelSet, receivers []string) []*Route {
+	matched := r.Match(lset)
+	if len(matched) == 0 || len(receivers) == 0 {
+		return matched
+	}
+	var result []*Route
+
+	receiverMap := make(map[string]bool, len(receivers))
+	for _, r := range receivers {
+		receiverMap[r] = true
+	}
+	for _, m := range matched {
+		if receiverMap[m.RouteOpts.Receiver] {
+			result = append(result, m)
+		}
+	}
+	return result
 }
 
 // Match does a depth-first left-to-right search through the route tree

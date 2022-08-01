@@ -381,9 +381,9 @@ route:
 	// Create alerts. the dispatcher will automatically create the groups.
 	inputAlerts := []*types.Alert{
 		// Matches the parent route.
-		newAlert(model.LabelSet{"alertname": "OtherAlert", "cluster": "cc", "service": "dd"}),
+		newAlertWithRec(model.LabelSet{"alertname": "OtherAlert", "cluster": "cc", "service": "dd"}, []string{}),
 		// Matches the first sub-route.
-		newAlert(model.LabelSet{"env": "testing", "alertname": "TestingAlert", "service": "api", "instance": "inst1"}),
+		newAlertWithRec(model.LabelSet{"env": "testing", "alertname": "TestingAlert", "service": "api", "instance": "inst1"}, []string{"testing"}),
 		// Matches the second sub-route.
 		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api", "instance": "inst1"}),
 		newAlert(model.LabelSet{"env": "prod", "alertname": "HighErrorRate", "cluster": "aa", "service": "api", "instance": "inst2"}),
@@ -609,6 +609,10 @@ var (
 )
 
 func newAlert(labels model.LabelSet) *types.Alert {
+	return newAlertWithRec(labels, []string{})
+}
+
+func newAlertWithRec(labels model.LabelSet, receivers []string) *types.Alert {
 	return &types.Alert{
 		Alert: model.Alert{
 			Labels:       labels,
@@ -617,6 +621,7 @@ func newAlert(labels model.LabelSet) *types.Alert {
 			EndsAt:       t1,
 			GeneratorURL: "http://example.com/prometheus",
 		},
+		Receivers: receivers,
 		UpdatedAt: t0,
 		Timeout:   false,
 	}
