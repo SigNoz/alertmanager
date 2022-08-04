@@ -20,6 +20,8 @@ package models
 // Editing this file might prove futile when you re-run the swagger generate command
 
 import (
+	"context"
+
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
@@ -38,6 +40,9 @@ type PostableAlert struct {
 	// Format: date-time
 	EndsAt strfmt.DateTime `json:"endsAt,omitempty"`
 
+	// receivers
+	Receivers []string `json:"receivers"`
+
 	// starts at
 	// Format: date-time
 	StartsAt strfmt.DateTime `json:"startsAt,omitempty"`
@@ -53,6 +58,8 @@ func (m *PostableAlert) UnmarshalJSON(raw []byte) error {
 
 		EndsAt strfmt.DateTime `json:"endsAt,omitempty"`
 
+		Receivers []string `json:"receivers"`
+
 		StartsAt strfmt.DateTime `json:"startsAt,omitempty"`
 	}
 	if err := swag.ReadJSON(raw, &dataAO0); err != nil {
@@ -62,6 +69,8 @@ func (m *PostableAlert) UnmarshalJSON(raw []byte) error {
 	m.Annotations = dataAO0.Annotations
 
 	m.EndsAt = dataAO0.EndsAt
+
+	m.Receivers = dataAO0.Receivers
 
 	m.StartsAt = dataAO0.StartsAt
 
@@ -84,12 +93,16 @@ func (m PostableAlert) MarshalJSON() ([]byte, error) {
 
 		EndsAt strfmt.DateTime `json:"endsAt,omitempty"`
 
+		Receivers []string `json:"receivers"`
+
 		StartsAt strfmt.DateTime `json:"startsAt,omitempty"`
 	}
 
 	dataAO0.Annotations = m.Annotations
 
 	dataAO0.EndsAt = m.EndsAt
+
+	dataAO0.Receivers = m.Receivers
 
 	dataAO0.StartsAt = m.StartsAt
 
@@ -140,11 +153,13 @@ func (m *PostableAlert) validateAnnotations(formats strfmt.Registry) error {
 		return nil
 	}
 
-	if err := m.Annotations.Validate(formats); err != nil {
-		if ve, ok := err.(*errors.Validation); ok {
-			return ve.ValidateName("annotations")
+	if m.Annotations != nil {
+		if err := m.Annotations.Validate(formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("annotations")
+			}
+			return err
 		}
-		return err
 	}
 
 	return nil
@@ -170,6 +185,37 @@ func (m *PostableAlert) validateStartsAt(formats strfmt.Registry) error {
 	}
 
 	if err := validate.FormatOf("startsAt", "body", "date-time", m.StartsAt.String(), formats); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validate this postable alert based on the context it is used
+func (m *PostableAlert) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	var res []error
+
+	if err := m.contextValidateAnnotations(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	// validation for a type composition with Alert
+	if err := m.Alert.ContextValidate(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (m *PostableAlert) contextValidateAnnotations(ctx context.Context, formats strfmt.Registry) error {
+
+	if err := m.Annotations.ContextValidate(ctx, formats); err != nil {
+		if ve, ok := err.(*errors.Validation); ok {
+			return ve.ValidateName("annotations")
+		}
 		return err
 	}
 

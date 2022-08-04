@@ -55,9 +55,8 @@ func (o *GetAlertsReader) ReadResponse(response runtime.ClientResponse, consumer
 			return nil, err
 		}
 		return nil, result
-
 	default:
-		return nil, runtime.NewAPIError("unknown error", response, response.Code())
+		return nil, runtime.NewAPIError("response status code does not match any response statuses defined for this endpoint in the swagger spec", response, response.Code())
 	}
 }
 
@@ -66,7 +65,7 @@ func NewGetAlertsOK() *GetAlertsOK {
 	return &GetAlertsOK{}
 }
 
-/*GetAlertsOK handles this case with default header values.
+/* GetAlertsOK describes a response with status code 200, with default header values.
 
 Get alerts response
 */
@@ -77,7 +76,6 @@ type GetAlertsOK struct {
 func (o *GetAlertsOK) Error() string {
 	return fmt.Sprintf("[GET /alerts][%d] getAlertsOK  %+v", 200, o.Payload)
 }
-
 func (o *GetAlertsOK) GetPayload() models.GettableAlerts {
 	return o.Payload
 }
@@ -97,7 +95,7 @@ func NewGetAlertsBadRequest() *GetAlertsBadRequest {
 	return &GetAlertsBadRequest{}
 }
 
-/*GetAlertsBadRequest handles this case with default header values.
+/* GetAlertsBadRequest describes a response with status code 400, with default header values.
 
 Bad request
 */
@@ -108,7 +106,6 @@ type GetAlertsBadRequest struct {
 func (o *GetAlertsBadRequest) Error() string {
 	return fmt.Sprintf("[GET /alerts][%d] getAlertsBadRequest  %+v", 400, o.Payload)
 }
-
 func (o *GetAlertsBadRequest) GetPayload() string {
 	return o.Payload
 }
@@ -128,7 +125,7 @@ func NewGetAlertsInternalServerError() *GetAlertsInternalServerError {
 	return &GetAlertsInternalServerError{}
 }
 
-/*GetAlertsInternalServerError handles this case with default header values.
+/* GetAlertsInternalServerError describes a response with status code 500, with default header values.
 
 Internal server error
 */
@@ -139,7 +136,6 @@ type GetAlertsInternalServerError struct {
 func (o *GetAlertsInternalServerError) Error() string {
 	return fmt.Sprintf("[GET /alerts][%d] getAlertsInternalServerError  %+v", 500, o.Payload)
 }
-
 func (o *GetAlertsInternalServerError) GetPayload() string {
 	return o.Payload
 }

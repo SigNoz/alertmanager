@@ -461,6 +461,11 @@ definitions:
             format: date-time
           annotations:
             $ref: '#/definitions/labelSet'
+          receivers:
+            type: array
+            items:
+              type: string
+              x-omitempty: true
       - $ref: '#/definitions/alert'
   alertGroups:
     type: array

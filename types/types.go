@@ -294,6 +294,8 @@ func (e *MultiError) Error() string {
 type Alert struct {
 	model.Alert
 
+	Receivers []string
+
 	// The authoritative timestamp.
 	UpdatedAt time.Time
 	Timeout   bool
