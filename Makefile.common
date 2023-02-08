@@ -59,8 +59,9 @@ $(warning Some recipes may not work as expected as the current Go runtime is '$(
 		GOVENDOR := $(FIRST_GOPATH)/bin/govendor
 	endif
 endif
-PROMU        := $(FIRST_GOPATH)/bin/promu
-pkgs          = ./...
+PROMU             := $(FIRST_GOPATH)/bin/promu
+PROMU_TARGETARCHS ?= linux/amd64 linux/arm64
+pkgs               = ./...
 
 ifeq (arm, $(GOHOSTARCH))
 	GOHOSTARM ?= $(shell GOARM= $(GO) env GOARM)
@@ -98,12 +99,12 @@ ifeq ($(GOHOSTOS),$(filter $(GOHOSTOS),linux darwin))
 	endif
 endif
 
-PREFIX                  ?= $(shell pwd)
+PREFIX                  ?= $(shell pwd)/.build/$(GOHOSTOS)-$(GOHOSTARCH)
 BIN_DIR                 ?= $(shell pwd)
-DOCKER_IMAGE_TAG        ?= $(subst /,-,$(shell git rev-parse --abbrev-ref HEAD))
+DOCKER_IMAGE_TAG        ?= latest
 DOCKERFILE_PATH         ?= ./Dockerfile
 DOCKERBUILD_CONTEXT     ?= ./
-DOCKER_REPO             ?= prom
+DOCKER_REPO             ?= signoz
 
 DOCKER_ARCHS            ?= amd64
 
@@ -241,18 +242,34 @@ common-build: promu
 	@echo ">> building binaries"
 	GO111MODULE=$(GO111MODULE) $(PROMU) build --prefix $(PREFIX) $(PROMU_BINARIES)
 
+.PHONY: common-crossbuild
+common-crossbuild: promu
+	@echo ">> building binaries"
+	GO111MODULE=$(GO111MODULE) $(PROMU) crossbuild $(foreach ARCH,$(PROMU_TARGETARCHS), -p $(ARCH)) $(PROMU_BINARIES)
+
 .PHONY: common-tarball
 common-tarball: promu
 	@echo ">> building release tarball"
 	$(PROMU) tarball --prefix $(PREFIX) $(BIN_DIR)
 
+.PHONY: common-docker-build-push
+common-docker-build-push:
+	docker buildx build \
+		-t "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_TAG)" \
+		-f $(DOCKERFILE_PATH) \
+		--no-cache \
+		--push \
+		--platform $(shell echo $(PROMU_TARGETARCHS) | sed "s/ \+/,/g") \
+		$(DOCKERBUILD_CONTEXT)
+
 .PHONY: common-docker $(BUILD_DOCKER_ARCHS)
 common-docker: $(BUILD_DOCKER_ARCHS)
 $(BUILD_DOCKER_ARCHS): common-docker-%:
-	docker build -t "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME)-linux-$*:$(DOCKER_IMAGE_TAG)" \
+	docker buildx build \
+		-t "$(DOCKER_REPO)/$(DOCKER_IMAGE_NAME)-linux-$*:$(DOCKER_IMAGE_TAG)" \
 		-f $(DOCKERFILE_PATH) \
-		--build-arg ARCH="$*" \
-		--build-arg OS="linux" \
+		--load \
+		--platform "linux/$*" \
 		$(DOCKERBUILD_CONTEXT)
 
 .PHONY: common-docker-publish $(PUBLISH_DOCKER_ARCHS)
