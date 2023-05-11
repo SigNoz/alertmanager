@@ -249,6 +249,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.SNSConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.MSTeamsConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 	}
 }
 
@@ -563,6 +566,15 @@ func (c *Config) Validate() error {
 				sns.HTTPConfig = c.Global.HTTPConfig
 			}
 		}
+		for _, msteams := range rcv.MSTeamsConfigs {
+			if msteams.HTTPConfig == nil {
+				msteams.HTTPConfig = c.Global.HTTPConfig
+			}
+			if msteams.WebhookURL == nil {
+				return fmt.Errorf("no msteams webhook URL provided")
+			}
+		}
+
 		names[rcv.Name] = struct{}{}
 	}
 
@@ -1035,6 +1047,7 @@ type Receiver struct {
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`
 	SNSConfigs       []*SNSConfig       `yaml:"sns_configs,omitempty" json:"sns_configs,omitempty"`
+	MSTeamsConfigs   []*MSTeamsConfig   `yaml:"msteams_configs,omitempty" json:"teams_configs,omitempty"`
 }
 
 func (c *Receiver) Validate() error {

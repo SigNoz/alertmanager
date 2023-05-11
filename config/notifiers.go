@@ -16,10 +16,11 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/pkg/errors"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/sigv4"
@@ -136,6 +137,14 @@ var (
 		},
 		Subject: `{{ template "sns.default.subject" . }}`,
 		Message: `{{ template "sns.default.message" . }}`,
+	}
+
+	DefaultMSTeamsConfig = MSTeamsConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		Title: `{{ template "msteams.default.title" . }}`,
+		Text:  `{{ template "msteams.default.text" . }}`,
 	}
 )
 
@@ -699,4 +708,19 @@ func (c *SNSConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("must provide a AWS SigV4 Access key and Secret Key if credentials are specified in the SNS config")
 	}
 	return nil
+}
+
+type MSTeamsConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+	HTTPConfig     *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+	WebhookURL     *SecretURL                  `yaml:"webhook_url,omitempty" json:"webhook_url,omitempty"`
+
+	Title string `yaml:"title,omitempty" json:"title,omitempty"`
+	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
+}
+
+func (c *MSTeamsConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultMSTeamsConfig
+	type plain MSTeamsConfig
+	return unmarshal((*plain)(c))
 }
