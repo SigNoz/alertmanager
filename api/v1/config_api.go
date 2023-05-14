@@ -11,6 +11,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/msteams"
 	"github.com/prometheus/alertmanager/notify/pagerduty"
 	"github.com/prometheus/alertmanager/notify/slack"
 	"github.com/prometheus/alertmanager/notify/webhook"
@@ -234,6 +235,21 @@ func (api *API) testReceiver(w http.ResponseWriter, req *http.Request) {
 		slackConfig := receiver.SlackConfigs[0]
 		slackConfig.HTTPConfig = &commoncfg.HTTPClientConfig{}
 		notifier, err := slack.New(slackConfig, tmpl, api.logger)
+		if err != nil {
+			api.respondError(w, apiError{err: err, typ: errorInternal}, "failed to prepare message for select config")
+			return
+		}
+		ctx := getCtx(receiver.Name)
+		dummyAlert := getDummyAlert()
+		_, err = notifier.Notify(ctx, &dummyAlert)
+		if err != nil {
+			api.respondError(w, apiError{err: err, typ: errorInternal}, fmt.Sprintf("failed to send test message to channel (%s)", receiver.Name))
+			return
+		}
+	} else if receiver.MSTeamsConfigs != nil {
+		msteamsConfig := receiver.MSTeamsConfigs[0]
+		msteamsConfig.HTTPConfig = &commoncfg.HTTPClientConfig{}
+		notifier, err := msteams.New(msteamsConfig, tmpl, api.logger)
 		if err != nil {
 			api.respondError(w, apiError{err: err, typ: errorInternal}, "failed to prepare message for select config")
 			return
