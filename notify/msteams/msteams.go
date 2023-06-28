@@ -69,7 +69,7 @@ func New(c *config.MSTeamsConfig, t *template.Template, l log.Logger, httpOpts .
 		tmpl:         t,
 		logger:       l,
 		client:       client,
-		retrier:      &notify.Retrier{},
+		retrier:      &notify.Retrier{RetryCodes: []int{429}},
 		webhookURL:   c.WebhookURL,
 		postJSONFunc: notify.PostJSON,
 	}
