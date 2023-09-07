@@ -1,5 +1,5 @@
 # use a minimal alpine image
-FROM --platform=$BUILDPLATFORM alpine:3.7
+FROM --platform=$BUILDPLATFORM alpine:3.16.7
 # add ca-certificates in case you need them
 RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 # set working directory
