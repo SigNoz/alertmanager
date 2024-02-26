@@ -299,6 +299,11 @@ func (api *API) testReceiver(w http.ResponseWriter, req *http.Request) {
 		}
 	} else if receiver.EmailConfigs != nil {
 		emailConfig := receiver.EmailConfigs[0]
+		emailConfig.From = defaultGlobalConfig.SMTPFrom
+		emailConfig.Smarthost = defaultGlobalConfig.SMTPSmarthost
+		emailConfig.AuthUsername = defaultGlobalConfig.SMTPAuthUsername
+		emailConfig.AuthPassword = defaultGlobalConfig.SMTPAuthPassword
+		emailConfig.RequireTLS = &defaultGlobalConfig.SMTPRequireTLS
 		notifier := email.New(emailConfig, tmpl, api.logger)
 		ctx := getCtx(receiver.Name)
 		dummyAlert := getDummyAlert()
