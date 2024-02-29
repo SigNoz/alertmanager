@@ -752,17 +752,26 @@ func DefaultGlobalConfig() GlobalConfig {
 
 	defaultSMTPFrom := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_FROM", "alertmanager@signoz.io")
 
+	defaultSMTPUsername := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_AUTH_USERNAME", "")
+	defaultSMTPPassword := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_AUTH_PASSWORD", "")
+	defaultSMTPAuthSecret := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_AUTH_SECRET", "")
+	defaultSMTPAuthIdentity := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_AUTH_IDENTITY", "")
+
 	return GlobalConfig{
-		ResolveTimeout:  resolveTimeout,
-		HTTPConfig:      &defaultHTTPConfig,
-		SMTPSmarthost:   defaultSMTPSmarthost,
-		SMTPFrom:        defaultSMTPFrom,
-		SMTPHello:       "localhost",
-		SMTPRequireTLS:  true,
-		PagerdutyURL:    mustParseURL("https://events.pagerduty.com/v2/enqueue"),
-		OpsGenieAPIURL:  mustParseURL("https://api.opsgenie.com/"),
-		WeChatAPIURL:    mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
-		VictorOpsAPIURL: mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
+		ResolveTimeout:   resolveTimeout,
+		HTTPConfig:       &defaultHTTPConfig,
+		SMTPSmarthost:    defaultSMTPSmarthost,
+		SMTPFrom:         defaultSMTPFrom,
+		SMTPAuthUsername: defaultSMTPUsername,
+		SMTPAuthPassword: Secret(defaultSMTPPassword),
+		SMTPAuthSecret:   Secret(defaultSMTPAuthSecret),
+		SMTPAuthIdentity: defaultSMTPAuthIdentity,
+		SMTPHello:        "localhost",
+		SMTPRequireTLS:   true,
+		PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
+		OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
+		WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
+		VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/prometheus/alertmanager/config"
 	"github.com/prometheus/alertmanager/notify"
+	"github.com/prometheus/alertmanager/notify/email"
 	"github.com/prometheus/alertmanager/notify/msteams"
 	"github.com/prometheus/alertmanager/notify/opsgenie"
 	"github.com/prometheus/alertmanager/notify/pagerduty"
@@ -289,6 +290,21 @@ func (api *API) testReceiver(w http.ResponseWriter, req *http.Request) {
 			api.respondError(w, apiError{err: err, typ: errorInternal}, "failed to prepare message for select config")
 			return
 		}
+		ctx := getCtx(receiver.Name)
+		dummyAlert := getDummyAlert()
+		_, err = notifier.Notify(ctx, &dummyAlert)
+		if err != nil {
+			api.respondError(w, apiError{err: err, typ: errorInternal}, fmt.Sprintf("failed to send test message to channel (%s)", receiver.Name))
+			return
+		}
+	} else if receiver.EmailConfigs != nil {
+		emailConfig := receiver.EmailConfigs[0]
+		emailConfig.From = defaultGlobalConfig.SMTPFrom
+		emailConfig.Smarthost = defaultGlobalConfig.SMTPSmarthost
+		emailConfig.AuthUsername = defaultGlobalConfig.SMTPAuthUsername
+		emailConfig.AuthPassword = defaultGlobalConfig.SMTPAuthPassword
+		emailConfig.RequireTLS = &defaultGlobalConfig.SMTPRequireTLS
+		notifier := email.New(emailConfig, tmpl, api.logger)
 		ctx := getCtx(receiver.Name)
 		dummyAlert := getDummyAlert()
 		_, err = notifier.Notify(ctx, &dummyAlert)
