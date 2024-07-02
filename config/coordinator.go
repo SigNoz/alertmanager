@@ -14,9 +14,9 @@
 package config
 
 import (
-	"fmt"
 	"crypto/md5"
 	"encoding/binary"
+	"fmt"
 	"sync"
 
 	"github.com/go-kit/log"
@@ -27,9 +27,9 @@ import (
 // Coordinator coordinates Alertmanager configurations beyond the lifetime of a
 // single configuration.
 type Coordinator struct {
-	configOpts 		 *ConfigOpts
-	configLoader 	 ConfigLoader
-	logger         log.Logger
+	configOpts   *ConfigOpts
+	configLoader ConfigLoader
+	logger       log.Logger
 
 	// Protects config and subscribers
 	mutex       sync.Mutex
@@ -47,8 +47,8 @@ type Coordinator struct {
 func NewCoordinator(configOpts *ConfigOpts, configLoader ConfigLoader, r prometheus.Registerer, l log.Logger) *Coordinator {
 	c := &Coordinator{
 		configLoader: configLoader,
-		logger:         l,
-		configOpts: configOpts,
+		logger:       l,
+		configOpts:   configOpts,
 	}
 
 	c.registerMetrics(r)
@@ -84,7 +84,7 @@ func (c *Coordinator) set(conf *Config) {
 		level.Error(c.logger).Log(
 			"msg", "warning: failed to marshal config",
 			"err", err,
-		)	
+		)
 	}
 
 	level.Debug(c.logger).Log(
@@ -111,7 +111,7 @@ func (c *Coordinator) notifySubscribers() error {
 	return nil
 }
 
-// OnUpdate brings the new config changes in play 
+// OnUpdate brings the new config changes in play
 func (c *Coordinator) OnUpdate() error {
 
 	if err := c.notifySubscribers(); err != nil {
@@ -130,8 +130,6 @@ func (c *Coordinator) OnUpdate() error {
 	return nil
 }
 
-
-
 // Reload triggers a configuration reload from file and notifies all
 // configuration change subscribers.
 func (c *Coordinator) Reload() error {
@@ -141,7 +139,7 @@ func (c *Coordinator) Reload() error {
 	level.Info(c.logger).Log(
 		"msg", "Loading a new configuration",
 	)
-	
+
 	conf := InitConfig(c.configOpts)
 
 	if err := c.configLoader.Load(conf); err != nil {
@@ -156,8 +154,8 @@ func (c *Coordinator) Reload() error {
 	level.Info(c.logger).Log(
 		"msg", "Completed loading of configuration file",
 	)
-	
-	// apply the loaded config 
+
+	// apply the loaded config
 	c.set(conf)
 
 	level.Debug(c.logger).Log(
@@ -176,13 +174,13 @@ func md5HashAsMetricValue(data []byte) float64 {
 	copy(bytes, smallSum)
 	return float64(binary.LittleEndian.Uint64(bytes))
 }
- 
-// AddRoute adds a new receiver and route 
+
+// AddRoute adds a new receiver and route
 func (c *Coordinator) AddRoute(r *Route, rcv *Receiver) error {
-	
+
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	if c.config == nil {
 		return fmt.Errorf("found an empty config in coordinator")
 	}
@@ -191,23 +189,23 @@ func (c *Coordinator) AddRoute(r *Route, rcv *Receiver) error {
 	if err := conf.AddRoute(r, rcv); err != nil {
 		return err
 	}
-	
-	// validate config first 
+
+	// validate config first
 	if err := conf.Validate(); err != nil {
 		return err
 	}
-	
-	// apply the loaded config 
-	c.set(&conf) 
+
+	// apply the loaded config
+	c.set(&conf)
 
 	return c.OnUpdate()
 }
 
-// EditRoute updates route and receiver   
+// EditRoute updates route and receiver
 func (c *Coordinator) EditRoute(r *Route, rcv *Receiver) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	if c.config == nil {
 		return fmt.Errorf("found an empty config in coordinator")
 	}
@@ -216,15 +214,15 @@ func (c *Coordinator) EditRoute(r *Route, rcv *Receiver) error {
 	if err := conf.EditRoute(r, rcv); err != nil {
 		return err
 	}
-	
-	// validate config first 
+
+	// validate config first
 	if err := conf.Validate(); err != nil {
 		return err
 	}
-	
-	// apply the loaded config 
-	c.set(&conf) 
-	
+
+	// apply the loaded config
+	c.set(&conf)
+
 	return c.OnUpdate()
 }
 
@@ -241,14 +239,14 @@ func (c *Coordinator) DeleteRoute(name string) error {
 	if err := conf.DeleteRoute(name); err != nil {
 		return err
 	}
-	
-	// validate config first 
+
+	// validate config first
 	if err := conf.Validate(); err != nil {
 		return err
 	}
-	
-	// apply the loaded config 
-	c.set(&conf) 
+
+	// apply the loaded config
+	c.set(&conf)
 
 	return c.OnUpdate()
 }
