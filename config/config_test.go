@@ -25,8 +25,8 @@ import (
 
 	commoncfg "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
 
@@ -445,8 +445,9 @@ receivers:
 		t.Errorf("\nexpected:\n%q\ngot:\n%q", expected, err.Error())
 	}
 }
-/* Amol/SigNoz 21/03/22 Skipping this test 
-	as we need to keep the secrets in memory to support dynamic changes 
+
+/* Amol/SigNoz 21/03/22 Skipping this test
+	as we need to keep the secrets in memory to support dynamic changes
 
 func TestHideConfigSecrets(t *testing.T) {
 	c, err := LoadFile("testdata/conf.good.yml")
@@ -1167,54 +1168,54 @@ func TestAddAndDeleteRoute(t *testing.T) {
 		Receiver: "test-add-route",
 	}
 
-	receiver := Receiver {
+	receiver := Receiver{
 		Name: "test-add-route",
 		WebhookConfigs: []*WebhookConfig{
-			&WebhookConfig {
+			&WebhookConfig{
 				URL: (*URL)(mustParseURL("https://webhook")),
 			},
 		},
 	}
 
 	config.AddRoute(&route, &receiver)
-	
+
 	assert := assert.New(t)
 	assert.NotNil(t, config)
 	if assert.NotNil(t, config.Route) {
 		if assert.NotNil(t, config.Route.Routes) {
-			expectedRoutes := []*Route {
+			expectedRoutes := []*Route{
 				&route,
 			}
-			
+
 			assert.Equal(config.Route.Routes, expectedRoutes, "unexpected attributes found on route")
 		}
 	}
-	
+
 	if assert.NotNil(t, config.Receivers) {
 		if assert.Equal(len(config.Receivers), 2, "unexpected receivers found") {
 			assert.Equal(config.Receivers[1], &receiver, "unexpected attributes found on the receiver")
 		}
 	}
-	
+
 	route.Receiver = "test-add-route-2"
 	receiver.Name = "test-add-route-2"
 
 	config.AddRoute(&route, &receiver)
 
 	assert.NoError(config.DeleteRoute("test-add-route"), "failed to delete route test-add-route")
-	
-	// check if existing receiver still exists 
+
+	// check if existing receiver still exists
 	check1 := false
 
-	// check if deleted receiver does not eixst 
+	// check if deleted receiver does not eixst
 	check2 := true
-	
+
 	for _, r := range config.Receivers {
 		if r.Name == "test-add-route-2" {
-			check1 = true; 
+			check1 = true
 		}
-		if r.Name == "test-add-route"{
-			// deleted receiver exists 
+		if r.Name == "test-add-route" {
+			// deleted receiver exists
 			check2 = false
 		}
 	}

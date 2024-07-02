@@ -275,6 +275,7 @@ func NewMetrics(r prometheus.Registerer) *Metrics {
 		"pushover",
 		"slack",
 		"opsgenie",
+        "telegram",
 		"webhook",
 		"victorops",
 		"sns",

@@ -228,6 +228,9 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, cfg := range receiver.OpsGenieConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
+		for _, cfg := range receiver.TelegramConfigs {
+			cfg.HTTPConfig.SetDirectory(baseDir)
+		}
 		for _, cfg := range receiver.PagerdutyConfigs {
 			cfg.HTTPConfig.SetDirectory(baseDir)
 		}
@@ -511,6 +514,14 @@ func (c *Config) Validate() error {
 				ogc.APIKeyFile = c.Global.OpsGenieAPIKeyFile
 			}
 		}
+		for _, telegram := range rcv.TelegramConfigs {
+			if telegram.HTTPConfig == nil {
+				telegram.HTTPConfig = c.Global.HTTPConfig
+			}
+			if telegram.APIUrl == nil {
+				telegram.APIUrl = c.Global.TelegramAPIUrl
+			}
+		}
 		for _, wcc := range rcv.WechatConfigs {
 			if wcc.HTTPConfig == nil {
 				wcc.HTTPConfig = c.Global.HTTPConfig
@@ -770,6 +781,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		SMTPRequireTLS:   true,
 		PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
 		OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
+		TelegramAPIUrl:   mustParseURL("https://api.telegram.org"),
 		WeChatAPIURL:     mustParseURL("https://qyapi.weixin.qq.com/cgi-bin/"),
 		VictorOpsAPIURL:  mustParseURL("https://alert.victorops.com/integrations/generic/20131114/alert/"),
 	}
@@ -889,6 +901,7 @@ type GlobalConfig struct {
 	OpsGenieAPIURL     *URL   `yaml:"opsgenie_api_url,omitempty" json:"opsgenie_api_url,omitempty"`
 	OpsGenieAPIKey     Secret `yaml:"opsgenie_api_key,omitempty" json:"opsgenie_api_key,omitempty"`
 	OpsGenieAPIKeyFile string `yaml:"opsgenie_api_key_file,omitempty" json:"opsgenie_api_key_file,omitempty"`
+	TelegramAPIUrl     *URL   `yaml:"telegram_api_url,omitempty" json:"telegram_api_url,omitempty"`
 	WeChatAPIURL       *URL   `yaml:"wechat_api_url,omitempty" json:"wechat_api_url,omitempty"`
 	WeChatAPISecret    Secret `yaml:"wechat_api_secret,omitempty" json:"wechat_api_secret,omitempty"`
 	WeChatAPICorpID    string `yaml:"wechat_api_corp_id,omitempty" json:"wechat_api_corp_id,omitempty"`
@@ -1052,6 +1065,7 @@ type Receiver struct {
 	SlackConfigs     []*SlackConfig     `yaml:"slack_configs,omitempty" json:"slack_configs,omitempty"`
 	WebhookConfigs   []*WebhookConfig   `yaml:"webhook_configs,omitempty" json:"webhook_configs,omitempty"`
 	OpsGenieConfigs  []*OpsGenieConfig  `yaml:"opsgenie_configs,omitempty" json:"opsgenie_configs,omitempty"`
+	TelegramConfigs  []*TelegramConfig  `yaml:"telegram_configs,omitempty" json:"telegram_configs,omitempty"`
 	WechatConfigs    []*WechatConfig    `yaml:"wechat_configs,omitempty" json:"wechat_configs,omitempty"`
 	PushoverConfigs  []*PushoverConfig  `yaml:"pushover_configs,omitempty" json:"pushover_configs,omitempty"`
 	VictorOpsConfigs []*VictorOpsConfig `yaml:"victorops_configs,omitempty" json:"victorops_configs,omitempty"`

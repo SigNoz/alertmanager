@@ -1,10 +1,10 @@
 package constants
 
-import ( 
+import (
 	"time"
 )
 
-// sets the environment vars but these can be overriden by 
+// sets the environment vars but these can be overriden by
 // command line args
 func RouteOptsGroupWait() time.Duration {
 	groupWaitInt := GetOrDefaultEnvInt("ALERTMANAGER_GROUP_WAIT", 30)

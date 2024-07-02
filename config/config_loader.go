@@ -1,16 +1,15 @@
 package config
 
 import (
+	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"path/filepath"
-	"gopkg.in/yaml.v2"
 )
 
 // ConfigLoader loads config for co-ordinator
 type ConfigLoader interface {
 	Load(c *Config) error
 }
-
 
 // configFileLoader is default config loader that reads
 // from yaml file. This is primarily meant for test coverage
@@ -34,9 +33,8 @@ func (cfl *configFileLoader) Load(c *Config) error {
 	if err != nil {
 		return err
 	}
-	
+
 	c.original = string(content)
 	resolveFilepaths(filepath.Dir(cfl.filePath), c)
 	return c.Validate()
 }
-

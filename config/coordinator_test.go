@@ -39,7 +39,7 @@ func (r *fakeRegisterer) Unregister(prometheus.Collector) bool {
 
 func TestCoordinatorRegistersMetrics(t *testing.T) {
 	fr := fakeRegisterer{}
-	configLoader:= NewConfigFileLoader("testdata/conf.good.yml")
+	configLoader := NewConfigFileLoader("testdata/conf.good.yml")
 	NewCoordinator(configLoader, &fr, log.NewNopLogger())
 
 	if len(fr.registeredCollectors) == 0 {
@@ -49,7 +49,7 @@ func TestCoordinatorRegistersMetrics(t *testing.T) {
 
 func TestCoordinatorNotifiesSubscribers(t *testing.T) {
 	callBackCalled := false
-	configLoader:= NewConfigFileLoader("testdata/conf.good.yml")
+	configLoader := NewConfigFileLoader("testdata/conf.good.yml")
 	c := NewCoordinator(configLoader, prometheus.NewRegistry(), log.NewNopLogger())
 	c.Subscribe(func(*Config) error {
 		callBackCalled = true
@@ -68,7 +68,7 @@ func TestCoordinatorNotifiesSubscribers(t *testing.T) {
 
 func TestCoordinatorFailReloadWhenSubscriberFails(t *testing.T) {
 	errMessage := "something happened"
-	configLoader:= NewConfigFileLoader("testdata/conf.good.yml")
+	configLoader := NewConfigFileLoader("testdata/conf.good.yml")
 	c := NewCoordinator(configLoader, prometheus.NewRegistry(), log.NewNopLogger())
 
 	c.Subscribe(func(*Config) error {
