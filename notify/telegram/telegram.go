@@ -83,7 +83,7 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		return false, fmt.Errorf("group key missing")
 	}
 
-    _, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
+    messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 	if truncated {
 		level.Warn(n.logger).Log("msg", "Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
 	}
@@ -94,7 +94,6 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		return true, err
 	}
 
-    messageText := "<b>Hello</b>"
 	message, err := n.client.Send(telebot.ChatID(n.conf.ChatID), messageText, &telebot.SendOptions{
 		DisableNotification:   n.conf.DisableNotifications,
 		DisableWebPagePreview: true,
