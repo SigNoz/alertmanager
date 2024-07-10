@@ -302,7 +302,7 @@ func (api *API) testReceiver(w http.ResponseWriter, req *http.Request) {
 		telegramConfig := receiver.TelegramConfigs[0]
 		telegramConfig.HTTPConfig = &commoncfg.HTTPClientConfig{}
 		telegramConfig.APIUrl = defaultGlobalConfig.TelegramAPIUrl
-		telegramConfig.Message = "Test alert fired from SigNoz dashboard"
+		telegramConfig.ParseMode = "HTML"
 		notifier, err := telegram.New(telegramConfig, tmpl, api.logger)
 		if err != nil {
 			api.respondError(w, apiError{err: err, typ: errorInternal}, "failed to prepare message for select config")

@@ -15,6 +15,7 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -67,15 +68,27 @@ func New(conf *config.TelegramConfig, t *template.Template, l log.Logger, httpOp
 }
 
 func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, error) {
-    level.Debug(n.logger).Log("msg", "Trying to notify Telegram")
+	level.Debug(n.logger).Log("msg", "Trying to notify Telegram")
 	var (
 		err  error
 		data = notify.GetTemplateData(ctx, n.tmpl, alert, n.logger)
-		tmpl = notify.TmplText(n.tmpl, data, &err)
+		tmpl func(string) string
 	)
 
-	if n.conf.ParseMode == "HTML" {
+	pm := n.conf.ParseMode
+	switch pm {
+	case "HTML":
 		tmpl = notify.TmplHTML(n.tmpl, data, &err)
+	case "Markdown":
+		tmpl = notify.TmplText(n.tmpl, data, &err)
+	default:
+		level.Error(n.logger).Log("msg", "Unknown ParseMode", "got", pm)
+		err = errors.New("Unknown ParseMode: " + pm)
+		return true, err
+	}
+	if err != nil {
+		level.Error(n.logger).Log("msg", "Couldn't parse template")
+		return true, err
 	}
 
 	key, ok := notify.GroupKey(ctx)
@@ -83,14 +96,13 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		return false, fmt.Errorf("group key missing")
 	}
 
-    messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
+	messageText, truncated := notify.TruncateInRunes(tmpl(n.conf.Message), maxMessageLenRunes)
 	if truncated {
 		level.Warn(n.logger).Log("msg", "Truncated message", "alert", key, "max_runes", maxMessageLenRunes)
 	}
 
 	n.client.Token, err = n.getBotToken()
 	if err != nil {
-        level.Debug(n.logger).Log("msg", "Telegram: token")
 		return true, err
 	}
 
@@ -100,8 +112,8 @@ func (n *Notifier) Notify(ctx context.Context, alert ...*types.Alert) (bool, err
 		ThreadID:              n.conf.MessageThreadID,
 	})
 	if err != nil {
-        level.Debug(n.logger).Log("url", n.conf.APIUrl, "chat_id", n.conf.ChatID, "msg", messageText, "Telegram", "telebot")
-        level.Error(n.logger).Log(err.Error())
+		level.Debug(n.logger).Log("url", n.conf.APIUrl, "chat_id", n.conf.ChatID, "msg", messageText, "Telegram", "telebot")
+		level.Error(n.logger).Log(err.Error())
 		return true, err
 	}
 	level.Debug(n.logger).Log("msg", "Telegram message successfully published", "message_id", message.ID, "chat_id", message.Chat.ID)
