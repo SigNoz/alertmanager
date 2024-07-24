@@ -32,6 +32,8 @@ import (
 	"github.com/prometheus/common/version"
 )
 
+const truncationMarker = "…"
+
 // UserAgentHeader is the default User-Agent for notification requests
 var UserAgentHeader = fmt.Sprintf("Alertmanager/%s", version.Version)
 
@@ -84,6 +86,20 @@ func request(ctx context.Context, client *http.Client, method string, url string
 func Drain(r *http.Response) {
 	io.Copy(ioutil.Discard, r.Body)
 	r.Body.Close()
+}
+
+// TruncateInRunes truncates a string to fit the given size in Runes.
+func TruncateInRunes(s string, n int) (string, bool) {
+	r := []rune(s)
+	if len(r) <= n {
+		return s, false
+	}
+
+	if n <= 3 {
+		return string(r[:n]), true
+	}
+
+	return string(r[:n-1]) + truncationMarker, true
 }
 
 // Truncate truncates a string to fit the given size.

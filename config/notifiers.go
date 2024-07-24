@@ -139,6 +139,15 @@ var (
 		Message: `{{ template "sns.default.message" . }}`,
 	}
 
+	DefaultTelegramConfig = TelegramConfig{
+		NotifierConfig: NotifierConfig{
+			VSendResolved: true,
+		},
+		DisableNotifications: false,
+		Message:              `{{ template "telegram.default.message" . }}`,
+		ParseMode:            "HTML",
+	}
+
 	DefaultMSTeamsConfig = MSTeamsConfig{
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
@@ -589,6 +598,47 @@ type OpsGenieConfigResponder struct {
 
 	// team, user, escalation, schedule etc.
 	Type string `yaml:"type,omitempty" json:"type,omitempty"`
+}
+
+// TelegramConfig configures notifications via Telegram.
+type TelegramConfig struct {
+	NotifierConfig `yaml:",inline" json:",inline"`
+
+	HTTPConfig *commoncfg.HTTPClientConfig `yaml:"http_config,omitempty" json:"http_config,omitempty"`
+
+	APIUrl               *URL   `yaml:"api_url" json:"api_url,omitempty"`
+	BotToken             Secret `yaml:"bot_token,omitempty" json:"token,omitempty"`
+	BotTokenFile         string `yaml:"bot_token_file,omitempty" json:"token_file,omitempty"`
+	ChatID               int64  `yaml:"chat_id,omitempty" json:"chat,omitempty"`
+	MessageThreadID      int    `yaml:"message_thread_id,omitempty" json:"message_thread_id,omitempty"`
+	Message              string `yaml:"message,omitempty" json:"message,omitempty"`
+	DisableNotifications bool   `yaml:"disable_notifications,omitempty" json:"disable_notifications,omitempty"`
+	ParseMode            string `yaml:"parse_mode,omitempty" json:"parse_mode,omitempty"`
+}
+
+// UnmarshalYAML implements the yaml.Unmarshaler interface.
+func (c *TelegramConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	*c = DefaultTelegramConfig
+	type plain TelegramConfig
+	if err := unmarshal((*plain)(c)); err != nil {
+		return err
+	}
+	if c.BotToken == "" && c.BotTokenFile == "" {
+		return fmt.Errorf("missing bot_token or bot_token_file on telegram_config")
+	}
+	if c.BotToken != "" && c.BotTokenFile != "" {
+		return fmt.Errorf("at most one of bot_token & bot_token_file must be configured")
+	}
+	if c.ChatID == 0 {
+		return fmt.Errorf("missing chat_id on telegram_config")
+	}
+	if c.ParseMode != "" &&
+		c.ParseMode != "Markdown" &&
+		c.ParseMode != "MarkdownV2" &&
+		c.ParseMode != "HTML" {
+		return fmt.Errorf("unknown parse_mode on telegram_config, must be Markdown, MarkdownV2, HTML or empty string")
+	}
+	return nil
 }
 
 // VictorOpsConfig configures notifications via VictorOps.
