@@ -48,7 +48,7 @@ func TestSlackRedactedURL(t *testing.T) {
 
 	notifier, err := New(
 		&config.SlackConfig{
-			APIURL:     &config.SecretURL{URL: u},
+			APIURL:     &config.URL{URL: u},
 			HTTPConfig: &commoncfg.HTTPClientConfig{},
 		},
 		test.CreateTmpl(t),
