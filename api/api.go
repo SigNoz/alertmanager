@@ -173,10 +173,10 @@ func New(opts Options) (*API, error) {
 // true for the concurrency limit, with the exception that it is only applied to
 // GET requests.
 func (api *API) Register(r *route.Router, routePrefix string, reloadCh chan<- chan error, updateConfigCh chan interface{}, updateConfigErrCh chan error) *http.ServeMux {
-	
+
 	// reloadCh:  can initiate reload of alertmanager with updated config
 	// on request
-	// updateConfigCh: writes current config from memory to disk 
+	// updateConfigCh: writes current config from memory to disk
 	api.v1.Register(r.WithPrefix("/api/v1"), reloadCh, updateConfigCh, updateConfigErrCh)
 
 	mux := http.NewServeMux()

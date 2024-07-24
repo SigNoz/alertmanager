@@ -17,13 +17,13 @@ func GetOrDefaultEnv(key string, fallback string) string {
 
 // GetOrDefaultEnvInt looks for environment variable if set, or
 // returns a fallback value passed by caller
-func GetOrDefaultEnvInt(key string, fallback int) (int) {
+func GetOrDefaultEnvInt(key string, fallback int) int {
 	v := os.Getenv(key)
 
 	if len(v) == 0 {
 		return fallback
 	}
-	i, err := strconv.Atoi(v) 
+	i, err := strconv.Atoi(v)
 
 	if err != nil {
 		return fallback

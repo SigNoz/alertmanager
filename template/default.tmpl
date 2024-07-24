@@ -53,6 +53,25 @@ Alerts Resolved:
 {{- end }}
 {{ define "opsgenie.default.source" }}{{ template "__alertmanagerURL" . }}{{ end }}
 
+{{ define "telegram.default.message" }}
+{{ if gt (len .Alerts.Firing) 0 -}}<b>Alerts Firing</b>
+{{ range .Alerts.Firing }}Labels:
+{{ range .Labels.SortedPairs }} - {{ .Name }} = {{ .Value }}
+{{ end }}Annotations:
+{{ range .Annotations.SortedPairs }}  - {{ .Name }} = {{ .Value }}
+{{ end }}
+{{ end }}
+{{ end }}
+{{ if gt (len .Alerts.Resolved) 0 -}}<b>Alerts Resolved</b>
+{{ range .Alerts.Resolved }}Labels:
+{{ range .Labels.SortedPairs }} - {{ .Name }} = {{ .Value }}
+{{ end }}
+Annotations:
+{{ range .Annotations.SortedPairs }}  - {{ .Name }} = {{ .Value }}
+{{ end }}
+{{ end }}
+{{ end }}
+{{ end }}
 
 {{ define "wechat.default.message" }}{{ template "__subject" . }}
 {{ .CommonAnnotations.SortedPairs.Values | join " " }}
