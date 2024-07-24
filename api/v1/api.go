@@ -805,7 +805,13 @@ func (api *API) respondError(w http.ResponseWriter, apiErr apiError, data interf
 	if err != nil {
 		return
 	}
-	level.Error(api.logger).Log("msg", "API error", "err", apiErr.Error())
+
+	errMsg := "API error"
+	if vbsMsg, ok := data.(string); ok && data != nil {
+		errMsg = fmt.Sprintf("%s: %s", errMsg, vbsMsg)
+	}
+
+	level.Error(api.logger).Log("msg", errMsg, "err", apiErr.Error())
 
 	if _, err := w.Write(b); err != nil {
 		level.Error(api.logger).Log("msg", "failed to write data to connection", "err", err)
