@@ -55,14 +55,21 @@ type Content struct {
 	Body    []Body `json:"body"`
 }
 
+type Fact struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+}
+
 type Body struct {
-	Type   string `json:"type"`
-	Text   string `json:"text"`
-	Weight string `json:"weigth,omitempty"`
-	Size   string `json:"size,omitempty"`
-	Wrap   bool   `json:"wrap,omitempty"`
-	Style  string `json:"style,omitempty"`
-	Color  string `json:"color,omitempty"`
+	Type                string `json:"type"`
+	Text                string `json:"text"`
+	Weight              string `json:"weigth,omitempty"`
+	Size                string `json:"size,omitempty"`
+	Wrap                bool   `json:"wrap,omitempty"`
+	Style               string `json:"style,omitempty"`
+	Color               string `json:"color,omitempty"`
+	HorizontalAlignment string `json:"horizontalAlignment,omitempty"`
+	Facts               []Fact `json:"facts,omitempty"`
 }
 
 type Attachment struct {
@@ -97,6 +104,39 @@ func New(c *config.MSTeamsConfig, t *template.Template, l log.Logger, httpOpts .
 	return n, nil
 }
 
+func addToBody(body []Body, alert *types.Alert) []Body {
+	body = append(body, Body{
+		Type:   "TextBlock",
+		Text:   "Labels",
+		Weight: "Bolder",
+		Size:   "Medium",
+	})
+	facts := []Fact{}
+	for k, v := range alert.Labels {
+		facts = append(facts, Fact{Title: string(k), Value: string(v)})
+	}
+	body = append(body, Body{
+		Type:  "FactSet",
+		Facts: facts,
+	})
+
+	body = append(body, Body{
+		Type:   "TextBlock",
+		Text:   "Annotations",
+		Weight: "Bolder",
+		Size:   "Medium",
+	})
+	annotationsFacts := []Fact{}
+	for k, v := range alert.Annotations {
+		annotationsFacts = append(annotationsFacts, Fact{Title: string(k), Value: string(v)})
+	}
+	body = append(body, Body{
+		Type:  "FactSet",
+		Facts: annotationsFacts,
+	})
+	return body
+}
+
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
@@ -112,10 +152,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	}
 
 	title := tmpl(n.conf.Title)
-	if err != nil {
-		return false, err
-	}
-	text := tmpl(n.conf.Text)
 	if err != nil {
 		return false, err
 	}
@@ -149,14 +185,26 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 							Style:  "heading",
 							Color:  color,
 						},
-						{
-							Type: "TextBlock",
-							Text: text,
-						},
 					},
 				},
 			},
 		},
+	}
+
+	for _, alert := range as {
+		if alert.Status() == model.AlertFiring {
+			t.Attachments[0].Content.Body = addToBody(t.Attachments[0].Content.Body, alert)
+		}
+		if alert.Status() == model.AlertResolved {
+			t.Attachments[0].Content.Body = append(t.Attachments[0].Content.Body, Body{
+				Type:   "TextBlock",
+				Text:   "Resolved Alerts",
+				Weight: "Bolder",
+				Size:   "Medium",
+				Wrap:   true,
+			})
+			t.Attachments[0].Content.Body = addToBody(t.Attachments[0].Content.Body, alert)
+		}
 	}
 
 	var payload bytes.Buffer
