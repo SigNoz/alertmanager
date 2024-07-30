@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -38,6 +39,13 @@ const (
 	colorGrey  = "Warning"
 )
 
+var (
+	// these are redundant with the existing information in the alert
+	LabelsToSkip = []string{"alertname", "severity", "ruleId", "ruleSource"}
+	// to avoid message restrictions on payload size
+	AnnotationsToSkip = []string{"summary", "related_logs", "related_traces"}
+)
+
 type Notifier struct {
 	conf         *config.MSTeamsConfig
 	tmpl         *template.Template
@@ -49,10 +57,11 @@ type Notifier struct {
 }
 
 type Content struct {
-	Schema  string `json:"$schema"`
-	Type    string `json:"type"`
-	Version string `json:"version"`
-	Body    []Body `json:"body"`
+	Schema  string   `json:"$schema"`
+	Type    string   `json:"type"`
+	Version string   `json:"version"`
+	Body    []Body   `json:"body"`
+	Actions []Action `json:"actions"`
 }
 
 type Fact struct {
@@ -70,6 +79,12 @@ type Body struct {
 	Color               string `json:"color,omitempty"`
 	HorizontalAlignment string `json:"horizontalAlignment,omitempty"`
 	Facts               []Fact `json:"facts,omitempty"`
+}
+
+type Action struct {
+	Type  string `json:"type"`
+	Title string `json:"title"`
+	URL   string `json:"url"`
 }
 
 type Attachment struct {
@@ -113,6 +128,9 @@ func addToBody(body []Body, alert *types.Alert) []Body {
 	})
 	facts := []Fact{}
 	for k, v := range alert.Labels {
+		if slices.Contains(LabelsToSkip, string(k)) {
+			continue
+		}
 		facts = append(facts, Fact{Title: string(k), Value: string(v)})
 	}
 	body = append(body, Body{
@@ -128,6 +146,9 @@ func addToBody(body []Body, alert *types.Alert) []Body {
 	})
 	annotationsFacts := []Fact{}
 	for k, v := range alert.Annotations {
+		if slices.Contains(AnnotationsToSkip, string(k)) {
+			continue
+		}
 		annotationsFacts = append(annotationsFacts, Fact{Title: string(k), Value: string(v)})
 	}
 	body = append(body, Body{
@@ -165,6 +186,15 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		color = colorGreen
 	}
 
+	var ruleSource string
+	for _, alert := range as {
+		for k, v := range alert.Labels {
+			if k == "ruleSource" {
+				ruleSource = string(v)
+			}
+		}
+	}
+
 	t := teamsMessage{
 		Type: "message",
 		Attachments: []Attachment{
@@ -186,6 +216,13 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 							Color:  color,
 						},
 					},
+					Actions: []Action{
+						{
+							Type:  "Action.OpenUrl",
+							Title: "View Alert",
+							URL:   ruleSource,
+						},
+					},
 				},
 			},
 		},
@@ -202,6 +239,7 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 				Weight: "Bolder",
 				Size:   "Medium",
 				Wrap:   true,
+				Color:  colorGreen,
 			})
 			t.Attachments[0].Content.Body = addToBody(t.Attachments[0].Content.Body, alert)
 		}
