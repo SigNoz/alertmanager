@@ -152,8 +152,7 @@ var (
 		NotifierConfig: NotifierConfig{
 			VSendResolved: true,
 		},
-		Title: `{{ template "msteams.default.title" . }}`,
-		Text:  `{{ template "msteams.default.text" . }}`,
+		Text: `{{ template "msteams.default.text" . }}`,
 	}
 )
 

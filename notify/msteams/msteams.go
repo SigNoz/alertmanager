@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
@@ -33,9 +34,16 @@ import (
 )
 
 const (
-	colorRed   = "8C1A1A"
-	colorGreen = "2DC72D"
-	colorGrey  = "808080"
+	colorRed   = "Attention"
+	colorGreen = "Good"
+	colorGrey  = "Warning"
+)
+
+var (
+	// these are redundant with the existing information in the alert
+	LabelsToSkip = []string{"alertname", "severity", "ruleId", "ruleSource"}
+	// to avoid message restrictions on payload size
+	AnnotationsToSkip = []string{"summary", "related_logs", "related_traces"}
 )
 
 type Notifier struct {
@@ -48,13 +56,47 @@ type Notifier struct {
 	postJSONFunc func(ctx context.Context, client *http.Client, url string, body io.Reader) (*http.Response, error)
 }
 
-// Message card reference can be found at https://learn.microsoft.com/en-us/outlook/actionable-messages/message-card-reference.
+type Content struct {
+	Schema  string   `json:"$schema"`
+	Type    string   `json:"type"`
+	Version string   `json:"version"`
+	Body    []Body   `json:"body"`
+	Actions []Action `json:"actions"`
+}
+
+type Fact struct {
+	Title string `json:"title"`
+	Value string `json:"value"`
+}
+
+type Body struct {
+	Type                string `json:"type"`
+	Text                string `json:"text"`
+	Weight              string `json:"weigth,omitempty"`
+	Size                string `json:"size,omitempty"`
+	Wrap                bool   `json:"wrap,omitempty"`
+	Style               string `json:"style,omitempty"`
+	Color               string `json:"color,omitempty"`
+	HorizontalAlignment string `json:"horizontalAlignment,omitempty"`
+	Facts               []Fact `json:"facts,omitempty"`
+}
+
+type Action struct {
+	Type  string `json:"type"`
+	Title string `json:"title"`
+	URL   string `json:"url"`
+}
+
+type Attachment struct {
+	ContentType string  `json:"contentType"`
+	ContentURL  *string `json:"contentUrl"`
+	Content     Content `json:"content"`
+}
+
+// Adaptive card reference can be found at https://learn.microsoft.com/en-us/power-automate/overview-adaptive-cards
 type teamsMessage struct {
-	Context    string `json:"@context"`
-	Type       string `json:"type"`
-	Title      string `json:"title"`
-	Text       string `json:"text"`
-	ThemeColor string `json:"themeColor"`
+	Type        string       `json:"type"`
+	Attachments []Attachment `json:"attachments"`
 }
 
 // New returns a new notifier that uses the Microsoft Teams Webhook API.
@@ -77,6 +119,45 @@ func New(c *config.MSTeamsConfig, t *template.Template, l log.Logger, httpOpts .
 	return n, nil
 }
 
+func addToBody(body []Body, alert *types.Alert) []Body {
+	body = append(body, Body{
+		Type:   "TextBlock",
+		Text:   "Labels",
+		Weight: "Bolder",
+		Size:   "Medium",
+	})
+	facts := []Fact{}
+	for k, v := range alert.Labels {
+		if slices.Contains(LabelsToSkip, string(k)) {
+			continue
+		}
+		facts = append(facts, Fact{Title: string(k), Value: string(v)})
+	}
+	body = append(body, Body{
+		Type:  "FactSet",
+		Facts: facts,
+	})
+
+	body = append(body, Body{
+		Type:   "TextBlock",
+		Text:   "Annotations",
+		Weight: "Bolder",
+		Size:   "Medium",
+	})
+	annotationsFacts := []Fact{}
+	for k, v := range alert.Annotations {
+		if slices.Contains(AnnotationsToSkip, string(k)) {
+			continue
+		}
+		annotationsFacts = append(annotationsFacts, Fact{Title: string(k), Value: string(v)})
+	}
+	body = append(body, Body{
+		Type:  "FactSet",
+		Facts: annotationsFacts,
+	})
+	return body
+}
+
 func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error) {
 	key, err := notify.ExtractGroupKey(ctx)
 	if err != nil {
@@ -95,10 +176,6 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 	if err != nil {
 		return false, err
 	}
-	text := tmpl(n.conf.Text)
-	if err != nil {
-		return false, err
-	}
 
 	alerts := types.Alerts(as...)
 	color := colorGrey
@@ -109,12 +186,63 @@ func (n *Notifier) Notify(ctx context.Context, as ...*types.Alert) (bool, error)
 		color = colorGreen
 	}
 
+	var ruleSource string
+	for _, alert := range as {
+		for k, v := range alert.Labels {
+			if k == "ruleSource" {
+				ruleSource = string(v)
+			}
+		}
+	}
+
 	t := teamsMessage{
-		Context:    "http://schema.org/extensions",
-		Type:       "MessageCard",
-		Title:      title,
-		Text:       text,
-		ThemeColor: color,
+		Type: "message",
+		Attachments: []Attachment{
+			{
+				ContentType: "application/vnd.microsoft.card.adaptive",
+				ContentURL:  nil,
+				Content: Content{
+					Schema:  "http://adaptivecards.io/schemas/adaptive-card.json",
+					Type:    "AdaptiveCard",
+					Version: "1.2",
+					Body: []Body{
+						{
+							Type:   "TextBlock",
+							Text:   title,
+							Weight: "Bolder",
+							Size:   "Medium",
+							Wrap:   true,
+							Style:  "heading",
+							Color:  color,
+						},
+					},
+					Actions: []Action{
+						{
+							Type:  "Action.OpenUrl",
+							Title: "View Alert",
+							URL:   ruleSource,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, alert := range as {
+		if alert.Status() == model.AlertFiring {
+			t.Attachments[0].Content.Body = addToBody(t.Attachments[0].Content.Body, alert)
+		}
+		if alert.Status() == model.AlertResolved {
+			t.Attachments[0].Content.Body = append(t.Attachments[0].Content.Body, Body{
+				Type:   "TextBlock",
+				Text:   "Resolved Alerts",
+				Weight: "Bolder",
+				Size:   "Medium",
+				Wrap:   true,
+				Color:  colorGreen,
+			})
+			t.Attachments[0].Content.Body = addToBody(t.Attachments[0].Content.Body, alert)
+		}
 	}
 
 	var payload bytes.Buffer
