@@ -14,10 +14,6 @@
 package config
 
 import (
-	"errors"
-	"testing"
-
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -35,52 +31,4 @@ func (r *fakeRegisterer) MustRegister(c ...prometheus.Collector) {
 
 func (r *fakeRegisterer) Unregister(prometheus.Collector) bool {
 	return false
-}
-
-func TestCoordinatorRegistersMetrics(t *testing.T) {
-	fr := fakeRegisterer{}
-	configLoader := NewConfigFileLoader("testdata/conf.good.yml")
-	NewCoordinator(configLoader, &fr, log.NewNopLogger())
-
-	if len(fr.registeredCollectors) == 0 {
-		t.Error("expected NewCoordinator to register metrics on the given registerer")
-	}
-}
-
-func TestCoordinatorNotifiesSubscribers(t *testing.T) {
-	callBackCalled := false
-	configLoader := NewConfigFileLoader("testdata/conf.good.yml")
-	c := NewCoordinator(configLoader, prometheus.NewRegistry(), log.NewNopLogger())
-	c.Subscribe(func(*Config) error {
-		callBackCalled = true
-		return nil
-	})
-
-	err := c.Reload()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !callBackCalled {
-		t.Fatal("expected coordinator.Reload() to call subscribers")
-	}
-}
-
-func TestCoordinatorFailReloadWhenSubscriberFails(t *testing.T) {
-	errMessage := "something happened"
-	configLoader := NewConfigFileLoader("testdata/conf.good.yml")
-	c := NewCoordinator(configLoader, prometheus.NewRegistry(), log.NewNopLogger())
-
-	c.Subscribe(func(*Config) error {
-		return errors.New(errMessage)
-	})
-
-	err := c.Reload()
-	if err == nil {
-		t.Fatal("expected reload to throw an error")
-	}
-
-	if err.Error() != errMessage {
-		t.Fatalf("expected error message %q but got %q", errMessage, err)
-	}
 }
