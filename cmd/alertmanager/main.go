@@ -28,10 +28,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promlog"
@@ -40,7 +42,6 @@ import (
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/exporter-toolkit/web"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
-	"gopkg.in/alecthomas/kingpin.v2"
 
 	"github.com/prometheus/alertmanager/api"
 	"github.com/prometheus/alertmanager/cluster"
@@ -109,12 +110,13 @@ var (
 )
 
 func init() {
+	model.NameValidationScheme = model.UTF8Validation
 	prometheus.MustRegister(requestDuration)
 	prometheus.MustRegister(responseSize)
 	prometheus.MustRegister(clusterEnabled)
 	prometheus.MustRegister(configuredReceivers)
 	prometheus.MustRegister(configuredIntegrations)
-	prometheus.MustRegister(version.NewCollector("alertmanager"))
+	prometheus.MustRegister(collectors.NewBuildInfoCollector())
 }
 
 func instrumentHandler(handlerName string, handler http.HandlerFunc) http.HandlerFunc {
@@ -210,10 +212,9 @@ func run() int {
 		retention       = kingpin.Flag("data.retention", "How long to keep data for.").Default("120h").Duration()
 		alertGCInterval = kingpin.Flag("alerts.gc-interval", "Interval between alert GC.").Default("30m").Duration()
 
-		webConfig      = webflag.AddFlags(kingpin.CommandLine)
+		webConfig      = webflag.AddFlags(kingpin.CommandLine, ":9093")
 		externalURL    = kingpin.Flag("web.external-url", "The URL under which Alertmanager is externally reachable (for example, if Alertmanager is served via a reverse proxy). Used for generating relative and absolute links back to Alertmanager itself. If the URL has a path portion, it will be used to prefix all HTTP endpoints served by Alertmanager. If omitted, relevant URL components will be derived automatically.").String()
 		routePrefix    = kingpin.Flag("web.route-prefix", "Prefix for the internal routes of web endpoints. Defaults to path of --web.external-url.").String()
-		listenAddress  = kingpin.Flag("web.listen-address", "Address to listen on for the web interface and API.").Default(":9093").String()
 		getConcurrency = kingpin.Flag("web.get-concurrency", "Maximum number of GET requests processed concurrently. If negative or zero, the limit is GOMAXPROC or 8, whichever is larger.").Default("0").Int()
 		httpTimeout    = kingpin.Flag("web.timeout", "Timeout for HTTP requests. If negative or zero, no timeout is set.").Default("0").Duration()
 
@@ -390,7 +391,7 @@ func run() int {
 		return 1
 	}
 
-	amURL, err := extURL(logger, os.Hostname, *listenAddress, *externalURL)
+	amURL, err := extURL(logger, os.Hostname, (*webConfig.WebListenAddresses)[0], *externalURL)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to determine external URL", "err", err)
 		return 1
@@ -571,12 +572,11 @@ func run() int {
 	// after addition of new route or receiver from handler (API)
 	mux := api.Register(router, *routePrefix, webReload, updateConfigCh, updateConfigErrCh)
 
-	srv := &http.Server{Addr: *listenAddress, Handler: mux}
+	srv := &http.Server{Handler: mux}
 	srvc := make(chan struct{})
 
 	go func() {
-		level.Info(logger).Log("msg", "Listening", "address", *listenAddress)
-		if err := web.ListenAndServe(srv, *webConfig, logger); err != http.ErrServerClosed {
+		if err := web.ListenAndServe(srv, webConfig, logger); err != http.ErrServerClosed {
 			level.Error(logger).Log("msg", "Listen error", "err", err)
 			close(srvc)
 		}
