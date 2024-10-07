@@ -767,7 +767,7 @@ func DefaultGlobalConfig() GlobalConfig {
 	defaultSMTPPassword := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_AUTH_PASSWORD", "")
 	defaultSMTPAuthSecret := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_AUTH_SECRET", "")
 	defaultSMTPAuthIdentity := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_AUTH_IDENTITY", "")
-	defaultSMTPRequireTLS := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_REQUIRE_TLS", true)
+	defaultSMTPRequireTLS := constants.GetOrDefaultEnvBool("ALERTMANAGER_SMTP_REQUIRE_TLS", true)
 
 	return GlobalConfig{
 		ResolveTimeout:   resolveTimeout,
