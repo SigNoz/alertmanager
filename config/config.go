@@ -767,6 +767,7 @@ func DefaultGlobalConfig() GlobalConfig {
 	defaultSMTPPassword := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_AUTH_PASSWORD", "")
 	defaultSMTPAuthSecret := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_AUTH_SECRET", "")
 	defaultSMTPAuthIdentity := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_AUTH_IDENTITY", "")
+	defaultSMTPRequireTLS := constants.GetOrDefaultEnv("ALERTMANAGER_SMTP_REQUIRE_TLS", true)
 
 	return GlobalConfig{
 		ResolveTimeout:   resolveTimeout,
@@ -778,7 +779,7 @@ func DefaultGlobalConfig() GlobalConfig {
 		SMTPAuthSecret:   Secret(defaultSMTPAuthSecret),
 		SMTPAuthIdentity: defaultSMTPAuthIdentity,
 		SMTPHello:        "localhost",
-		SMTPRequireTLS:   true,
+		SMTPRequireTLS:   defaultSMTPRequireTLS,
 		PagerdutyURL:     mustParseURL("https://events.pagerduty.com/v2/enqueue"),
 		OpsGenieAPIURL:   mustParseURL("https://api.opsgenie.com/"),
 		TelegramAPIUrl:   mustParseURL("https://api.telegram.org"),
