@@ -36,7 +36,7 @@ require (
 	github.com/xlab/treeprint v1.1.0
 	go.uber.org/atomic v1.9.0
 	golang.org/x/mod v0.17.0
-	golang.org/x/net v0.28.0
+	golang.org/x/net v0.33.0
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/telebot.v3 v3.3.6
