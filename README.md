@@ -1,3 +1,5 @@
+> Deprecation Notice: This repository is deprecated. Starting release v0.76.0, SigNoz has bundled the alertmanager into the SigNoz binary.
+
 # Alertmanager [![CircleCI](https://circleci.com/gh/prometheus/alertmanager/tree/main.svg?style=shield)][circleci]
 
 [![Docker Repository on Quay](https://quay.io/repository/prometheus/alertmanager/status "Docker Repository on Quay")][quay]
